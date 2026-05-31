@@ -26,6 +26,8 @@ services:
         condition: service_healthy
     ports:
       - "9092:9092"   # host access
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -50,17 +52,13 @@ services:
       kafka:
         condition: service_healthy
     entrypoint: ["/bin/bash", "-c"]
-    command: >
-      "
-        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists
-          --topic raw-transcripts --replication-factor 1 --partitions 3 &&
-        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists
-          --topic raw-prices --replication-factor 1 --partitions 3 &&
-        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists
-          --topic scored-transcripts --replication-factor 1 --partitions 3 &&
+    command:
+      - |
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic raw-transcripts --replication-factor 1 --partitions 3 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic raw-prices --replication-factor 1 --partitions 3 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic scored-transcripts --replication-factor 1 --partitions 3 &&
         echo '=== Topics ready ===' &&
         kafka-topics --bootstrap-server kafka:29092 --list
-      "
     restart: "no"
 
   mongo:
@@ -107,20 +105,23 @@ services:
       - path: .env
         required: false
 
-  # scoring-service:
-  #   build: ./scoring-service
-  #   container_name: scoring-service
-  #   restart: unless-stopped
-  #   depends_on:
-  #     kafka:
-  #       condition: service_healthy
-  #     mongo:
-  #       condition: service_healthy
-  #   environment:
-  #     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-  #     MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
-  #     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-  #   env_file: .env
+  scoring-service:
+    build: ./scoring-service
+    container_name: scoring-service
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SCORING_MODEL: ${SCORING_MODEL:-claude-sonnet-4-6}
+    env_file:
+      - path: .env
+        required: false
 
   # correlation-service:
   #   build: ./correlation-service
@@ -165,3 +166,4 @@ services:
 
 volumes:
   mongo_data:
+  kafka_data:
