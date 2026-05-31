@@ -1,0 +1,167 @@
+services:
+
+  # ── Infrastructure ────────────────────────────────────────────────────────────
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo srvr | nc localhost 2181 | grep -q Mode"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"   # host access
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # One-shot container that creates the three topics then exits.
+  kafka-setup:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka-setup
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command: >
+      "
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists
+          --topic raw-transcripts --replication-factor 1 --partitions 3 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists
+          --topic raw-prices --replication-factor 1 --partitions 3 &&
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists
+          --topic scored-transcripts --replication-factor 1 --partitions 3 &&
+        echo '=== Topics ready ===' &&
+        kafka-topics --bootstrap-server kafka:29092 --list
+      "
+    restart: "no"
+
+  mongo:
+    image: mongo:7
+    container_name: mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: earnings_sentiment
+    volumes:
+      - mongo_data:/data/db
+      - ./mongo/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "--quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ── Application services (Phase 2+) ──────────────────────────────────────────
+  # Uncomment each service as you build it.
+
+  ingestor:
+    build: ./ingestor
+    container_name: ingestor
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
+      EDGAR_USER_AGENT: ${EDGAR_USER_AGENT:-EarningsSentimentResearch contact@example.com}
+      TICKERS: ${TICKERS:-AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,JPM,JNJ,XOM}
+      LOOKBACK_DAYS: ${LOOKBACK_DAYS:-30}
+      SCHEDULE_HOUR: ${SCHEDULE_HOUR:-6}
+      FMP_API_KEY: ${FMP_API_KEY:-}
+    env_file:
+      - path: .env
+        required: false
+
+  # scoring-service:
+  #   build: ./scoring-service
+  #   container_name: scoring-service
+  #   restart: unless-stopped
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #     mongo:
+  #       condition: service_healthy
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  #     MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
+  #     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+  #   env_file: .env
+
+  # correlation-service:
+  #   build: ./correlation-service
+  #   container_name: correlation-service
+  #   restart: unless-stopped
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #     mongo:
+  #       condition: service_healthy
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  #     MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
+  #   env_file: .env
+
+  # bff:
+  #   build: ./bff
+  #   container_name: bff
+  #   restart: unless-stopped
+  #   depends_on:
+  #     mongo:
+  #       condition: service_healthy
+  #   ports:
+  #     - "3001:3001"
+  #   environment:
+  #     MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
+  #     JWT_SECRET: ${JWT_SECRET:-changeme}
+  #     PORT: 3001
+  #   env_file: .env
+
+  # frontend:
+  #   build: ./frontend
+  #   container_name: frontend
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - bff
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     NEXT_PUBLIC_API_URL: http://localhost:3001
+  #   env_file: .env
+
+volumes:
+  mongo_data:
