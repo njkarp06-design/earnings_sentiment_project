@@ -1,0 +1,4 @@
+kafka-python==2.0.2
+pymongo==4.7.2
+anthropic==0.28.0
+python-dotenv==1.0.1
