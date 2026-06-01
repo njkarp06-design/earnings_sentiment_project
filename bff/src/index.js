@@ -23,6 +23,9 @@ app.use('/auth',        require('./routes/auth'));
 app.use('/feed',        require('./routes/feed'));
 app.use('/search',      require('./routes/search'));
 app.use('/portfolio',   require('./routes/portfolio'));
+app.use('/inspect',     require('./routes/inspect'));
+app.use('/suggestions', require('./routes/suggestions'));
+app.use('/pulse',       require('./routes/pulse'));
 app.use('/companies',   require('./routes/companies'));
 app.use('/leaderboard', require('./routes/leaderboard'));
 

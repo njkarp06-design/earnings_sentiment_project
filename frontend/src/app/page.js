@@ -4,6 +4,7 @@ import { getFeed } from '@/lib/api';
 import FeedCard from '@/components/FeedCard';
 import SearchBar from '@/components/SearchBar';
 import SearchOverlay from '@/components/SearchOverlay';
+import PulseBar from '@/components/PulseBar';
 
 export default function DashboardPage() {
   const [items, setItems] = useState([]);
@@ -26,6 +27,8 @@ export default function DashboardPage() {
           CEO confidence scores and post-call stock reactions
         </p>
       </div>
+
+      <PulseBar />
 
       <div className="mb-8">
         <SearchBar onResult={setOverlayItem} />
@@ -53,7 +56,6 @@ export default function DashboardPage() {
             <FeedCard
               key={item.filing_id ?? `${item.ticker}-${item.call_date}`}
               item={item}
-              onSearchSelect={setOverlayItem}
             />
           ))}
         </div>

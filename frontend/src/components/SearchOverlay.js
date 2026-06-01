@@ -5,7 +5,16 @@ import clsx from 'clsx';
 import ScoreBar from './ScoreBar';
 import ReturnBadge from './ReturnBadge';
 import MiniSparkline from './MiniSparkline';
+import InspectModal from './InspectModal';
 import { usePortfolio } from '@/context/PortfolioContext';
+
+function SparkleIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+    </svg>
+  );
+}
 
 function fmtDate(str) {
   if (!str) return '—';
@@ -39,16 +48,17 @@ function BookmarkIcon({ filled }) {
 export default function SearchOverlay({ item, onClose }) {
   const { watchlist, add, remove, isLoggedIn } = usePortfolio();
   const [saving, setSaving] = useState(false);
+  const [inspecting, setInspecting] = useState(false);
 
   const saved = watchlist.includes(item.ticker);
   const isPositive = item.return_7d != null ? item.return_7d >= 0 : null;
 
-  // ESC key to close
+  // ESC key to close — skip when InspectModal is layered on top
   useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    const handler = (e) => { if (e.key === 'Escape' && !inspecting) onClose(); };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
+  }, [onClose, inspecting]);
 
   // Prevent body scroll while overlay is open
   useEffect(() => {
@@ -67,7 +77,8 @@ export default function SearchOverlay({ item, onClose }) {
   };
 
   return (
-    // Backdrop — click outside to close
+    <>
+    {/* Backdrop — click outside to close */}
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
       onClick={onClose}
@@ -157,6 +168,15 @@ export default function SearchOverlay({ item, onClose }) {
             View full history →
           </Link>
 
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setInspecting(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+            >
+              <SparkleIcon />
+              Deep Analysis
+            </button>
+
           {isLoggedIn ? (
             <button
               onClick={handlePortfolioToggle}
@@ -181,8 +201,14 @@ export default function SearchOverlay({ item, onClose }) {
               Sign in to save
             </Link>
           )}
+          </div>
         </div>
       </div>
     </div>
+
+    {inspecting && (
+      <InspectModal item={item} onClose={() => setInspecting(false)} />
+    )}
+    </>
   );
 }
