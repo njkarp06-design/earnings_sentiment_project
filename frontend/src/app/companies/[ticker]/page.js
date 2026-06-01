@@ -4,6 +4,7 @@ import { getCompanyHistory } from '@/lib/api';
 import ScoreBar from '@/components/ScoreBar';
 import ReturnBadge from '@/components/ReturnBadge';
 import ScoreChart from '@/components/ScoreChart';
+import MiniSparkline from '@/components/MiniSparkline';
 
 function fmtDate(str) {
   if (!str) return '—';
@@ -91,6 +92,17 @@ function CallCard({ item }) {
           </span>
         )}
       </div>
+
+      {item.price_series?.length > 0 && (
+        <div className="mb-4">
+          <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-2">Price Reaction (7-day window)</div>
+          <MiniSparkline
+            data={item.price_series}
+            positive={item.return_7d != null ? item.return_7d >= 0 : null}
+            height={80}
+          />
+        </div>
+      )}
 
       <div className="mb-4">
         <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-1.5">CEO Confidence</div>
