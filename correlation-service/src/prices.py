@@ -37,16 +37,23 @@ def compute_post_call_returns(ticker: str, call_date: str, fetch_days: int = 12)
     try:
         import requests as _requests
         session = _requests.Session()
-        session.headers["User-Agent"] = (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        )
+        session.headers.update({
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+        })
         t = yf.Ticker(ticker, session=session)
         df = t.history(
             start=start.isoformat(),
             end=end.isoformat(),
             auto_adjust=True,
+            timeout=15,
         )
     except Exception as exc:
         logger.warning("yfinance download failed for %s (%s): %s", ticker, call_date, exc)

@@ -106,6 +106,9 @@ services:
         condition: service_healthy
       mongo:
         condition: service_healthy
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
@@ -173,19 +176,22 @@ services:
       - path: .env
         required: false
 
-  # frontend:
-  #   build: ./frontend
-  #   container_name: frontend
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - bff
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     NEXT_PUBLIC_API_URL: http://localhost:3001
-  #   env_file:
-  #     - path: .env
-  #       required: false
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+    container_name: frontend
+    restart: unless-stopped
+    depends_on:
+      - bff
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+    env_file:
+      - path: .env
+        required: false
 
 volumes:
   mongo_data:
