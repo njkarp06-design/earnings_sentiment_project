@@ -1,9 +1,11 @@
 'use client';
+import { useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import ScoreBar from './ScoreBar';
 import ReturnBadge from './ReturnBadge';
 import MiniSparkline from './MiniSparkline';
+import { usePortfolio } from '@/context/PortfolioContext';
 
 function fmtDate(str) {
   if (!str) return '—';
@@ -19,8 +21,37 @@ function accentBorder(score) {
   return 'border-t-red-500/70';
 }
 
+function BookmarkIcon({ filled }) {
+  return (
+    <svg
+      className="w-3.5 h-3.5"
+      viewBox="0 0 20 20"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth={filled ? 0 : 1.8}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" />
+    </svg>
+  );
+}
+
 export default function FeedCard({ item }) {
+  const { watchlist, add, remove, isLoggedIn } = usePortfolio();
+  const [saving, setSaving] = useState(false);
+
+  const saved = watchlist.includes(item.ticker);
   const isPositive = item.return_7d != null ? item.return_7d >= 0 : null;
+
+  const handleBookmark = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      if (saved) await remove(item.ticker);
+      else await add(item.ticker);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div
@@ -43,7 +74,23 @@ export default function FeedCard({ item }) {
             <span className="ml-2 text-slate-400 text-sm truncate">{item.company_name}</span>
           )}
         </div>
-        <span className="text-slate-500 text-xs shrink-0 mt-0.5">{fmtDate(item.call_date)}</span>
+
+        <div className="flex items-center gap-2 shrink-0 mt-0.5">
+          <span className="text-slate-500 text-xs">{fmtDate(item.call_date)}</span>
+          {isLoggedIn && (
+            <button
+              onClick={handleBookmark}
+              disabled={saving}
+              aria-label={saved ? 'Remove from portfolio' : 'Add to portfolio'}
+              className={clsx(
+                'transition-colors disabled:opacity-50',
+                saved ? 'text-emerald-400 hover:text-emerald-300' : 'text-slate-500 hover:text-slate-300',
+              )}
+            >
+              <BookmarkIcon filled={saved} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── 7-day price sparkline ────────────────────────────── */}

@@ -21,6 +21,8 @@ app.use(express.json());
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.use('/auth',        require('./routes/auth'));
 app.use('/feed',        require('./routes/feed'));
+app.use('/search',      require('./routes/search'));
+app.use('/portfolio',   require('./routes/portfolio'));
 app.use('/companies',   require('./routes/companies'));
 app.use('/leaderboard', require('./routes/leaderboard'));
 
