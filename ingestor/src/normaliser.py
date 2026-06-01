@@ -9,6 +9,7 @@ def normalise_transcript(
     filing_id: str,
     cik: str,
     raw_text: str,
+    source: str = "sec_edgar",
 ) -> dict:
     """Produce the canonical raw-transcripts Kafka message."""
     return {
@@ -19,7 +20,7 @@ def normalise_transcript(
         "cik": cik,
         "raw_text": raw_text,
         "ingested_at": datetime.now(timezone.utc).isoformat(),
-        "source": "sec_edgar",
+        "source": source,
     }
 
 

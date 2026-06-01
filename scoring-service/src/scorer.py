@@ -83,9 +83,12 @@ class Scorer:
                 raw = raw[4:]
             raw = raw.strip()
 
-        parsed = json.loads(raw)
-        score = max(0, min(100, int(parsed["confidence_score"])))
-        phrases = [str(p) for p in parsed.get("key_phrases", [])][:3]
+        try:
+            parsed = json.loads(raw)
+            score = max(0, min(100, int(parsed["confidence_score"])))
+            phrases = [str(p) for p in parsed.get("key_phrases", [])][:3]
+        except (json.JSONDecodeError, KeyError, ValueError) as exc:
+            raise ValueError(f"Malformed Claude response for {ticker}: {exc}") from exc
 
         logger.info(
             "Scored %s → %d/100  cache=%s  phrases=%s",
