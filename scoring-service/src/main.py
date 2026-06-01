@@ -117,6 +117,10 @@ def main() -> None:
             # ── Score via Claude ──────────────────────────────────────────────
             try:
                 result = scorer.score(msg["raw_text"], ticker)
+            except ValueError as exc:
+                logger.error("Skipping unscoreable message %s [%s]: %s", ticker, filing_id, exc)
+                consumer.commit()  # malformed model response — skip, don't retry forever
+                continue
             except Exception as exc:
                 logger.error("Scoring failed for %s [%s]: %s", ticker, filing_id, exc)
                 # Don't commit — will retry on service restart

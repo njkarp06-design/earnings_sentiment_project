@@ -124,11 +124,13 @@ def _fmp_scan(
             if store.is_processed(filing_id):
                 continue
 
-            # Filter by lookback window using approximate quarter date
-            from datetime import datetime as _dt
-            approx_month = {1: 2, 2: 5, 3: 8, 4: 11}.get(quarter, 2)
+            # Filter by lookback window using approximate reporting month.
+            # Calls happen ~1 month after quarter end, not at quarter start.
+            # Q4 calls fall in January of the following year.
+            approx_month = {1: 4, 2: 7, 3: 10, 4: 1}.get(quarter, 4)
+            approx_year = year + 1 if quarter == 4 else year
             try:
-                approx_date = _dt(year, approx_month, 1)
+                approx_date = datetime(approx_year, approx_month, 1)
             except ValueError:
                 continue
             if approx_date < since:
@@ -145,6 +147,7 @@ def _fmp_scan(
             _publish_transcript_and_prices(
                 ticker, ticker, call_date, filing_id, "",
                 transcript["content"], producer, store,
+                source="fmp",
             )
 
 
@@ -159,6 +162,7 @@ def _publish_transcript_and_prices(
     raw_text: str,
     producer: KafkaProducer,
     store: ProcessedStore,
+    source: str = "sec_edgar",
 ) -> bool:
     """Publish transcript + price window. Returns True if transcript published."""
     t_msg = normalise_transcript(
@@ -168,6 +172,7 @@ def _publish_transcript_and_prices(
         filing_id=filing_id,
         cik=cik,
         raw_text=raw_text,
+        source=source,
     )
     try:
         producer.publish_transcript(t_msg)
@@ -252,6 +257,7 @@ def main() -> None:
     except (KeyboardInterrupt, SystemExit):
         logger.info("Shutting down ingestor")
         producer.close()
+        store.close()
 
 
 if __name__ == "__main__":
