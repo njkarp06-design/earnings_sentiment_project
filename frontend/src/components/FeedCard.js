@@ -35,7 +35,13 @@ function BookmarkIcon({ filled }) {
   );
 }
 
-export default function FeedCard({ item }) {
+function estimateNextCall(callDateStr) {
+  const d = new Date(callDateStr + 'T12:00:00');
+  d.setDate(d.getDate() + 91);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+export default function FeedCard({ item, showNextCall = false }) {
   const { watchlist, add, remove, isLoggedIn } = usePortfolio();
   const [saving, setSaving] = useState(false);
 
@@ -110,7 +116,11 @@ export default function FeedCard({ item }) {
       {/* ── CEO confidence + key phrases ─────────────────────── */}
       <div className="flex flex-col gap-3 px-5 pt-3 pb-5 border-t border-slate-700/50">
         <div>
-          <div className="text-[11px] text-slate-500 mb-1.5 uppercase tracking-wide">CEO Confidence</div>
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-1.5 uppercase tracking-wide">
+            CEO Confidence
+            {item.trend === 'up'   && <span className="text-emerald-400 normal-case tracking-normal">↑</span>}
+            {item.trend === 'down' && <span className="text-red-400 normal-case tracking-normal">↓</span>}
+          </div>
           <ScoreBar score={item.confidence_score} />
         </div>
 
@@ -125,6 +135,12 @@ export default function FeedCard({ item }) {
               </span>
             ))}
           </div>
+        )}
+
+        {showNextCall && item.call_date && (
+          <p className="text-[10px] text-slate-600">
+            ~Next call {estimateNextCall(item.call_date)}
+          </p>
         )}
       </div>
     </div>
