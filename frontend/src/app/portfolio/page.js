@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getToken } from '@/lib/auth';
-import { getPortfolioItems } from '@/lib/api';
+import { getPortfolioItems, getSuggestions } from '@/lib/api';
 import FeedCard from '@/components/FeedCard';
+import SuggestionCard from '@/components/SuggestionCard';
 import SearchOverlay from '@/components/SearchOverlay';
 import { usePortfolio } from '@/context/PortfolioContext';
 
@@ -11,6 +12,7 @@ export default function PortfolioPage() {
   const router = useRouter();
   const { watchlist } = usePortfolio();
   const [items, setItems] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [overlayItem, setOverlayItem] = useState(null);
 
@@ -27,23 +29,35 @@ export default function PortfolioPage() {
       .then(setItems)
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [watchlist.length]);  // re-fetch when watchlist size changes
+  }, [watchlist.length]);
+
+  // Load suggestions (refetch when watchlist changes)
+  useEffect(() => {
+    if (!getToken()) return;
+    getSuggestions()
+      .then(setSuggestions)
+      .catch(() => setSuggestions([]));
+  }, [watchlist.length]);
 
   if (!getToken()) return null;
+
+  const hasSuggestions = suggestions.length > 0;
 
   return (
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-100">My Portfolio</h1>
         <p className="text-slate-400 mt-1 text-sm">
-          Companies you&apos;ve saved — bookmark any card on the feed to add more
+          {items.length > 0
+            ? `${items.length} saved ${items.length === 1 ? 'company' : 'companies'} — bookmark any card on the feed to add more`
+            : 'Bookmark any card on the feed to build your portfolio'}
         </p>
       </div>
 
       {loading && <SkeletonGrid />}
 
       {!loading && items.length === 0 && (
-        <div className="text-center py-24 flex flex-col items-center gap-3">
+        <div className="text-center py-16 flex flex-col items-center gap-3">
           <div className="text-slate-600">
             <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" strokeWidth={1.2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
@@ -53,25 +67,47 @@ export default function PortfolioPage() {
           <p className="text-slate-500 text-sm max-w-xs text-center">
             Search for a company on the feed and click the bookmark icon to add it here.
           </p>
-          <a
-            href="/"
-            className="mt-2 text-blue-400 hover:text-blue-300 text-sm transition-colors font-medium"
-          >
+          <a href="/" className="mt-2 text-blue-400 hover:text-blue-300 text-sm transition-colors font-medium">
             Browse the feed →
           </a>
         </div>
       )}
 
       {!loading && items.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-12">
           {items.map((item) => (
             <FeedCard
               key={item.filing_id ?? `${item.ticker}-${item.call_date}`}
               item={item}
-              onSearchSelect={setOverlayItem}
+              showNextCall
             />
           ))}
         </div>
+      )}
+
+      {/* ── Suggestions ──────────────────────────────────────────── */}
+      {!loading && hasSuggestions && (
+        <section>
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-200">
+              {items.length > 0 ? 'You might also like' : 'Suggested companies'}
+            </h2>
+            <p className="text-slate-500 text-xs mt-0.5">
+              {items.length > 0
+                ? 'Based on the sectors you follow'
+                : 'Top-rated companies across all sectors'}
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {suggestions.map((item) => (
+              <SuggestionCard
+                key={item.filing_id ?? item.ticker}
+                item={item}
+                onInspect={setOverlayItem}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {overlayItem && (
