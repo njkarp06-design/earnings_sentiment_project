@@ -22,9 +22,6 @@ logger = logging.getLogger(__name__)
 
 _FMP_BASE = "https://financialmodelingprep.com/api"
 
-# Approximate month for each fiscal quarter (used to filter by lookback window)
-_QUARTER_MONTH = {1: 2, 2: 5, 3: 8, 4: 11}
-
 
 class FmpClient:
     def __init__(self, api_key: str) -> None:

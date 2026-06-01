@@ -81,6 +81,19 @@ services:
       retries: 10
       start_period: 20s
 
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+
   # ── Application services (Phase 2+) ──────────────────────────────────────────
   # Uncomment each service as you build it.
 
@@ -117,40 +130,48 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       SCORING_MODEL: ${SCORING_MODEL:-claude-sonnet-4-6}
     env_file:
       - path: .env
         required: false
 
-  # correlation-service:
-  #   build: ./correlation-service
-  #   container_name: correlation-service
-  #   restart: unless-stopped
-  #   depends_on:
-  #     kafka:
-  #       condition: service_healthy
-  #     mongo:
-  #       condition: service_healthy
-  #   environment:
-  #     KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-  #     MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
-  #   env_file: .env
+  correlation-service:
+    build: ./correlation-service
+    container_name: correlation-service
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
+      PRICE_FETCH_DAYS: ${PRICE_FETCH_DAYS:-12}
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    env_file:
+      - path: .env
+        required: false
 
-  # bff:
-  #   build: ./bff
-  #   container_name: bff
-  #   restart: unless-stopped
-  #   depends_on:
-  #     mongo:
-  #       condition: service_healthy
-  #   ports:
-  #     - "3001:3001"
-  #   environment:
-  #     MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
-  #     JWT_SECRET: ${JWT_SECRET:-changeme}
-  #     PORT: 3001
-  #   env_file: .env
+  bff:
+    build: ./bff
+    container_name: bff
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    environment:
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-changeme}
+      PORT: 3001
+    env_file:
+      - path: .env
+        required: false
 
   # frontend:
   #   build: ./frontend
@@ -162,7 +183,9 @@ services:
   #     - "3000:3000"
   #   environment:
   #     NEXT_PUBLIC_API_URL: http://localhost:3001
-  #   env_file: .env
+  #   env_file:
+  #     - path: .env
+  #       required: false
 
 volumes:
   mongo_data:

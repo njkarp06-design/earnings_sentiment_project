@@ -1,20 +1,45 @@
-// Phase 4 placeholder.
-// REST endpoints:
-//   GET /companies/:ticker/history
-//   GET /companies/:ticker/latest
-//   GET /leaderboard
-//   GET /feed
-//   POST /auth/login  POST /auth/register
-
+require('dotenv').config();
 const express = require('express');
+const cors    = require('cors');
+const { connect } = require('./db');
 
-const app = express();
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET is not set — add it to .env before starting');
+  process.exit(1);
+}
+if (process.env.JWT_SECRET === 'changeme') {
+  console.warn('WARNING: JWT_SECRET is "changeme" — use a strong secret in production');
+}
+
+const app  = express();
 const PORT = process.env.PORT || 3001;
 
+app.use(cors());
 app.use(express.json());
 
+// ── Routes ──────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.use('/auth',        require('./routes/auth'));
+app.use('/feed',        require('./routes/feed'));
+app.use('/companies',   require('./routes/companies'));
+app.use('/leaderboard', require('./routes/leaderboard'));
 
-app.listen(PORT, () => {
-  console.log(`BFF listening on :${PORT} (stub — implement in Phase 4)`);
+// ── 404 handler ──────────────────────────────────────────────────────────────
+app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
+
+// ── Global error handler ─────────────────────────────────────────────────────
+// eslint-disable-next-line no-unused-vars
+app.use((err, _req, res, _next) => {
+  console.error(err);
+  res.status(500).json({ error: 'Internal server error' });
 });
+
+// ── Start ────────────────────────────────────────────────────────────────────
+connect()
+  .then(() => {
+    app.listen(PORT, () => console.log(`BFF listening on :${PORT}`));
+  })
+  .catch(err => {
+    console.error('MongoDB connection failed:', err.message);
+    process.exit(1);
+  });

@@ -13,8 +13,8 @@ class ProcessedStore:
     """
 
     def __init__(self, mongo_uri: str) -> None:
-        client = MongoClient(mongo_uri)
-        db = client.get_default_database()
+        self._client = MongoClient(mongo_uri)
+        db = self._client.get_default_database()
         self._col = db["_ingested_filings"]
         self._col.create_index("filing_id", unique=True)
 
@@ -26,3 +26,6 @@ class ProcessedStore:
             self._col.insert_one({"filing_id": filing_id})
         except DuplicateKeyError:
             pass  # already marked — harmless
+
+    def close(self) -> None:
+        self._client.close()
