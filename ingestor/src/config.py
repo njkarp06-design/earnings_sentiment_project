@@ -11,7 +11,8 @@ class Config:
     edgar_user_agent: str
     tickers: List[str]
     lookback_days: int            # how far back to scan for new 8-K filings on startup
-    schedule_interval_hours: int  # how often to re-scan (e.g. 2 = every 2 hours)
+    schedule_interval_hours: int  # how often to re-scan per-ticker list (e.g. 2 = every 2 hours)
+    rss_poll_interval_minutes: int  # how often to poll the EDGAR live 8-K RSS feed
     # Empty string = FMP disabled; set to enable fallback for EDGAR misses
     fmp_api_key: str = ""
 
@@ -36,5 +37,6 @@ class Config:
             tickers=[t.strip().upper() for t in tickers_raw.split(",") if t.strip()],
             lookback_days=int(os.getenv("LOOKBACK_DAYS", "30")),
             schedule_interval_hours=int(os.getenv("SCHEDULE_INTERVAL_HOURS", "2")),
+            rss_poll_interval_minutes=int(os.getenv("RSS_POLL_INTERVAL_MINUTES", "10")),
             fmp_api_key=os.getenv("FMP_API_KEY", ""),
         )

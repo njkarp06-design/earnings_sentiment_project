@@ -88,7 +88,7 @@ export default function SearchBar({ onResult }) {
 
       {notFound && (
         <p className="text-xs text-slate-500 pl-1">
-          No earnings data found for <span className="text-slate-300">{query}</span> — we only track companies after their calls are processed.
+          No company found matching <span className="text-slate-300">{query}</span> — try a ticker symbol or the full company name.
         </p>
       )}
     </div>

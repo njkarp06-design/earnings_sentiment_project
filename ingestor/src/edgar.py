@@ -74,6 +74,8 @@ class EdgarClient:
         }
         # Populated lazily on first call to get_company_info()
         self._cik_map: Optional[Dict[str, Dict]] = None
+        # Reverse map: cik_padded → {ticker, name} — built alongside _cik_map
+        self._reverse_cik_map: Dict[str, Dict] = {}
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -82,6 +84,26 @@ class EdgarClient:
         if self._cik_map is None:
             self._cik_map = self._build_cik_map()
         return self._cik_map.get(ticker.upper())
+
+    def cik_to_info(self, cik: str) -> Optional[Dict]:
+        """Return {'ticker': str, 'name': str} for a CIK, or None if unknown.
+
+        Accepts any zero-padding variant (e.g. '320193' or '0000320193').
+        Only covers exchange-listed companies in the SEC company_tickers.json.
+        """
+        if self._cik_map is None:
+            self._cik_map = self._build_cik_map()
+        try:
+            cik_padded = str(int(cik)).zfill(10)
+        except (ValueError, TypeError):
+            return None
+        return self._reverse_cik_map.get(cik_padded)
+
+    def get_all_companies(self) -> Dict[str, Dict]:
+        """Return the full {ticker → {cik, name}} map for universe seeding."""
+        if self._cik_map is None:
+            self._cik_map = self._build_cik_map()
+        return dict(self._cik_map)
 
     def get_recent_8k_filings(self, cik: str, since: datetime) -> List[Dict]:
         """
@@ -145,15 +167,22 @@ class EdgarClient:
     # ── Private helpers ───────────────────────────────────────────────────────
 
     def _build_cik_map(self) -> Dict[str, Dict]:
-        """Download and cache the full ticker → CIK + name mapping."""
+        """Download and cache the full ticker → CIK + name mapping.
+
+        Also builds the reverse CIK → {ticker, name} map so that the RSS
+        feed poller can resolve any CIK it encounters back to a ticker.
+        """
         data = self._get(f"{_EDGAR_BASE}/files/company_tickers.json").json()
-        return {
-            v["ticker"].upper(): {
-                "cik": str(v["cik_str"]).zfill(10),
-                "name": v["title"],
-            }
-            for v in data.values()
-        }
+        forward: Dict[str, Dict] = {}
+        reverse: Dict[str, Dict] = {}
+        for v in data.values():
+            cik_padded = str(v["cik_str"]).zfill(10)
+            ticker = v["ticker"].upper()
+            name = v["title"]
+            forward[ticker] = {"cik": cik_padded, "name": name}
+            reverse[cik_padded] = {"ticker": ticker, "name": name}
+        self._reverse_cik_map = reverse
+        return forward
 
     def _exhibit_candidates(self, items: List[Dict]) -> List[str]:
         """
