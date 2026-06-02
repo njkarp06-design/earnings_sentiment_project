@@ -19,8 +19,16 @@ function authHeaders() {
 // ── Public endpoints ─────────────────────────────────────────────────────────
 
 export const getFeed = () => apiFetch('/feed');
+export const getFeedSince = (since) => apiFetch(`/feed?since=${encodeURIComponent(since)}`);
 export const getLeaderboard = () => apiFetch('/leaderboard');
 export const getCompanyHistory = (ticker) => apiFetch(`/companies/${ticker}/history`);
+export const getAccuracy = (ticker) => apiFetch(`/companies/${ticker}/accuracy`);
+export const getCalendar = (from, to) => {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to)   params.set('to', to);
+  return apiFetch(`/calendar${params.toString() ? '?' + params : ''}`, { headers: authHeaders() });
+};
 export const searchCompanies = (q) => apiFetch(`/search?q=${encodeURIComponent(q)}`);
 
 // ── Auth endpoints ────────────────────────────────────────────────────────────
