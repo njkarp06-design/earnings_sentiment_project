@@ -125,12 +125,15 @@ export default function InspectModal({ item, onClose }) {
     }
   }, [analysis]);
 
-  // Start streaming immediately on mount
+  // Start streaming immediately on mount; guard all callbacks so they become
+  // no-ops if the modal is closed before the stream finishes.
   useEffect(() => {
     if (!getToken()) {
       setError('Sign in to use deep analysis.');
       return;
     }
+
+    let mounted = true;
 
     inspectCall(
       {
@@ -143,10 +146,12 @@ export default function InspectModal({ item, onClose }) {
         return_3d:        item.return_3d,
         return_7d:        item.return_7d,
       },
-      (chunk) => setAnalysis((prev) => prev + chunk),
-      ()      => setDone(true),
-      (msg)   => setError(msg),
+      (chunk) => { if (mounted) setAnalysis((prev) => prev + chunk); },
+      ()      => { if (mounted) setDone(true); },
+      (msg)   => { if (mounted) setError(msg); },
     );
+
+    return () => { mounted = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
