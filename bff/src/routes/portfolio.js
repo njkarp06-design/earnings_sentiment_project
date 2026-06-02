@@ -3,7 +3,7 @@ const User          = require('../models/User');
 const PriceReaction = require('../models/PriceReaction');
 const requireAuth   = require('../middleware/auth');
 
-const FEED_SELECT = '-_id filing_id ticker company_name call_date confidence_score key_phrases return_1d return_3d return_7d call_date_close price_series correlated_at';
+const FEED_SELECT = '-_id filing_id ticker company_name sector call_date confidence_score trend key_phrases return_1d return_3d return_7d call_date_close price_series correlated_at';
 
 // All portfolio routes require a valid JWT.
 router.use(requireAuth);

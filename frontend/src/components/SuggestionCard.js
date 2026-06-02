@@ -35,6 +35,7 @@ function CheckIcon() {
 export default function SuggestionCard({ item, onInspect }) {
   const { watchlist, add } = usePortfolio();
   const [saving, setSaving] = useState(false);
+  const [addError, setAddError] = useState(null);
 
   const saved = watchlist.includes(item.ticker);
   const isPositive = item.return_7d != null ? item.return_7d >= 0 : null;
@@ -43,8 +44,15 @@ export default function SuggestionCard({ item, onInspect }) {
     e.stopPropagation();
     if (saved) return;
     setSaving(true);
-    try { await add(item.ticker); }
-    finally { setSaving(false); }
+    setAddError(null);
+    try {
+      await add(item.ticker);
+    } catch (err) {
+      setAddError(err.message || 'Failed');
+      setTimeout(() => setAddError(null), 3000);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -75,40 +83,45 @@ export default function SuggestionCard({ item, onInspect }) {
       )}
 
       {/* ── Stats + Add button ───────────────────────────────── */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-700/50">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <span className={clsx('text-xs font-semibold tabular-nums', scoreColor(item.confidence_score))}>
-              {item.confidence_score}
-            </span>
-            <TrendArrow trend={item.trend} />
+      <div className="flex flex-col border-t border-slate-700/50">
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <span className={clsx('text-xs font-semibold tabular-nums', scoreColor(item.confidence_score))}>
+                {item.confidence_score}
+              </span>
+              <TrendArrow trend={item.trend} />
+            </div>
+            {item.return_7d != null && (
+              <span
+                className={clsx(
+                  'text-xs tabular-nums font-medium',
+                  item.return_7d >= 0 ? 'text-emerald-400' : 'text-red-400',
+                )}
+              >
+                {item.return_7d >= 0 ? '+' : ''}{item.return_7d.toFixed(2)}%
+              </span>
+            )}
           </div>
-          {item.return_7d != null && (
-            <span
-              className={clsx(
-                'text-xs tabular-nums font-medium',
-                item.return_7d >= 0 ? 'text-emerald-400' : 'text-red-400',
-              )}
-            >
-              {item.return_7d >= 0 ? '+' : ''}{item.return_7d.toFixed(2)}%
-            </span>
-          )}
-        </div>
 
-        <button
-          onClick={handleAdd}
-          disabled={saving || saved}
-          aria-label={saved ? 'Already in portfolio' : 'Add to portfolio'}
-          className={clsx(
-            'flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-60',
-            saved
-              ? 'bg-emerald-600/20 text-emerald-400'
-              : 'bg-blue-600 hover:bg-blue-500 text-white',
-          )}
-        >
-          {saved ? <CheckIcon /> : <PlusIcon />}
-          {saved ? 'Saved' : 'Add'}
-        </button>
+          <button
+            onClick={handleAdd}
+            disabled={saving || saved}
+            aria-label={saved ? 'Already in portfolio' : 'Add to portfolio'}
+            className={clsx(
+              'flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-60',
+              saved
+                ? 'bg-emerald-600/20 text-emerald-400'
+                : 'bg-blue-600 hover:bg-blue-500 text-white',
+            )}
+          >
+            {saved ? <CheckIcon /> : <PlusIcon />}
+            {saved ? 'Saved' : 'Add'}
+          </button>
+        </div>
+        {addError && (
+          <p className="text-[10px] text-red-400 text-right px-4 pb-2 -mt-1">{addError}</p>
+        )}
       </div>
     </div>
   );
