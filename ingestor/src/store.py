@@ -1,5 +1,5 @@
 import logging
-from typing import Set
+from typing import Optional, Set
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
 
@@ -40,6 +40,21 @@ class ProcessedStore:
         except Exception as exc:
             logger.warning("Could not fetch watchlist tickers from MongoDB: %s", exc)
             return set()
+
+    def upsert_company(self, ticker: str, name: str, sector: Optional[str] = None) -> None:
+        """Keep the companies collection current with ticker / name / optional sector."""
+        try:
+            db = self._client.get_default_database()
+            update: dict = {"ticker": ticker.upper(), "name": name}
+            if sector:
+                update["sector"] = sector
+            db.companies.update_one(
+                {"ticker": ticker.upper()},
+                {"$set": update},
+                upsert=True,
+            )
+        except Exception as exc:
+            logger.warning("Failed to upsert company %s: %s", ticker, exc)
 
     def close(self) -> None:
         self._client.close()
