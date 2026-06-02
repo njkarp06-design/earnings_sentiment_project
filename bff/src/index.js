@@ -31,6 +31,7 @@ app.use('/inspect',     require('./routes/inspect'));
 app.use('/suggestions', require('./routes/suggestions'));
 app.use('/pulse',       require('./routes/pulse'));
 app.use('/companies',   require('./routes/companies'));
+app.use('/prices',      require('./routes/prices'));
 app.use('/leaderboard', require('./routes/leaderboard'));
 app.use('/calendar',    require('./routes/calendar'));
 
