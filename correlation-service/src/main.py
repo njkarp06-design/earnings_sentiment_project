@@ -29,6 +29,7 @@ from pymongo import MongoClient
 
 from .backfill import backfill_pending_returns
 from .config import Config
+from .notify import notify_portfolio_users
 from .prices import compute_post_call_returns
 from .store import already_correlated, upsert_price_reaction, upsert_raw_price
 
@@ -163,9 +164,10 @@ def main() -> None:
                 **returns,
             }
 
-            # ── Write to MongoDB ──────────────────────────────────────────────
+            # ── Write to MongoDB + notify portfolio users ─────────────────────
             try:
                 upsert_price_reaction(db, doc)
+                notify_portfolio_users(db, doc)
                 logger.info(
                     "✓ price_reactions  %-6s  score=%-3s  1d=%s%%  3d=%s%%  7d=%s%%",
                     ticker,

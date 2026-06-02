@@ -1,16 +1,19 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { getFeed, getFeedSince } from '@/lib/api';
+import { usePortfolio } from '@/context/PortfolioContext';
 import FeedCard from '@/components/FeedCard';
 import SearchBar from '@/components/SearchBar';
 import SearchOverlay from '@/components/SearchOverlay';
 import PulseBar from '@/components/PulseBar';
 
 export default function DashboardPage() {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { watchlist, isLoggedIn } = usePortfolio();
+  const [items, setItems]           = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(null);
   const [overlayItem, setOverlayItem] = useState(null);
+  const [filter, setFilter]         = useState('all'); // 'all' | 'portfolio'
   const lastFetchRef = useRef(null);
 
   useEffect(() => {
@@ -33,11 +36,20 @@ export default function DashboardPage() {
             });
           }
         })
-        .catch(() => {}); // silent on background refresh errors
+        .catch(() => {});
     }, 60_000);
 
     return () => clearInterval(interval);
   }, []);
+
+  // Reset to 'all' if user logs out
+  useEffect(() => {
+    if (!isLoggedIn) setFilter('all');
+  }, [isLoggedIn]);
+
+  const displayed = filter === 'portfolio'
+    ? items.filter(i => watchlist.includes(i.ticker))
+    : items;
 
   return (
     <div>
@@ -54,6 +66,25 @@ export default function DashboardPage() {
         <SearchBar onResult={setOverlayItem} />
       </div>
 
+      {/* ── Feed filter toggle ───────────────────────────────────── */}
+      {isLoggedIn && (
+        <div className="flex items-center gap-1 mb-6 bg-slate-800 border border-slate-700 rounded-lg p-1 w-fit">
+          {['all', 'portfolio'].map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                filter === f
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {f === 'all' ? 'All' : 'My Portfolio'}
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading && <SkeletonGrid />}
 
       {error && (
@@ -63,16 +94,25 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {!loading && !error && items.length === 0 && (
+      {!loading && !error && displayed.length === 0 && (
         <div className="text-center py-20 text-slate-500">
-          <p className="text-lg mb-1">No earnings calls yet</p>
-          <p className="text-sm">Run the ingestor or inject a test transcript to get started.</p>
+          {filter === 'portfolio' ? (
+            <>
+              <p className="text-lg mb-1">No portfolio companies in the feed yet</p>
+              <p className="text-sm">Your saved companies will appear here when they report.</p>
+            </>
+          ) : (
+            <>
+              <p className="text-lg mb-1">No earnings calls yet</p>
+              <p className="text-sm">Run the ingestor or inject a test transcript to get started.</p>
+            </>
+          )}
         </div>
       )}
 
-      {!loading && !error && items.length > 0 && (
+      {!loading && !error && displayed.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((item) => (
+          {displayed.map((item) => (
             <FeedCard
               key={item.filing_id ?? `${item.ticker}-${item.call_date}`}
               item={item}
@@ -92,10 +132,7 @@ function SkeletonGrid() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div
-          key={i}
-          className="bg-slate-800 border border-slate-700 rounded-xl p-5 animate-pulse space-y-3"
-        >
+        <div key={i} className="bg-slate-800 border border-slate-700 rounded-xl p-5 animate-pulse space-y-3">
           <div className="h-4 bg-slate-700 rounded w-1/3" />
           <div className="h-2 bg-slate-700 rounded w-full" />
           <div className="h-2 bg-slate-700 rounded w-2/3" />

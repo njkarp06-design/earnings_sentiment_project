@@ -8,20 +8,25 @@ import SuggestionCard from '@/components/SuggestionCard';
 import SearchOverlay from '@/components/SearchOverlay';
 import { usePortfolio } from '@/context/PortfolioContext';
 
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isRecent(callDate) {
+  if (!callDate) return false;
+  return Date.now() - new Date(callDate + 'T12:00:00').getTime() < SEVEN_DAYS_MS;
+}
+
 export default function PortfolioPage() {
   const router = useRouter();
   const { watchlist } = usePortfolio();
-  const [items, setItems] = useState([]);
+  const [items, setItems]           = useState([]);
   const [suggestions, setSuggestions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]       = useState(true);
   const [overlayItem, setOverlayItem] = useState(null);
 
-  // Auth guard
   useEffect(() => {
     if (!getToken()) router.push('/login');
   }, [router]);
 
-  // Load portfolio data
   useEffect(() => {
     if (!getToken()) return;
     setLoading(true);
@@ -31,17 +36,15 @@ export default function PortfolioPage() {
       .finally(() => setLoading(false));
   }, [watchlist.length]);
 
-  // Load suggestions (refetch when watchlist changes)
   useEffect(() => {
     if (!getToken()) return;
-    getSuggestions()
-      .then(setSuggestions)
-      .catch(() => setSuggestions([]));
+    getSuggestions().then(setSuggestions).catch(() => setSuggestions([]));
   }, [watchlist.length]);
 
   if (!getToken()) return null;
 
-  const hasSuggestions = suggestions.length > 0;
+  const justReported = items.filter(i => isRecent(i.call_date));
+  const rest         = items.filter(i => !isRecent(i.call_date));
 
   return (
     <div>
@@ -73,33 +76,60 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {!loading && items.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-12">
-          {items.map((item) => (
-            <FeedCard
-              key={item.filing_id ?? `${item.ticker}-${item.call_date}`}
-              item={item}
-              showNextCall
-            />
-          ))}
-        </div>
+      {/* ── Just Reported ────────────────────────────────────────── */}
+      {!loading && justReported.length > 0 && (
+        <section className="mb-10">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <h2 className="text-sm font-semibold text-emerald-400 uppercase tracking-widest">
+              Just Reported
+            </h2>
+            <span className="text-[11px] text-slate-600">— last 7 days</span>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {justReported.map(item => (
+              <FeedCard
+                key={item.filing_id ?? `${item.ticker}-${item.call_date}`}
+                item={item}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Rest of portfolio ────────────────────────────────────── */}
+      {!loading && rest.length > 0 && (
+        <section className="mb-12">
+          {justReported.length > 0 && (
+            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-4">
+              Your Portfolio
+            </h2>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {rest.map(item => (
+              <FeedCard
+                key={item.filing_id ?? `${item.ticker}-${item.call_date}`}
+                item={item}
+                showNextCall
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {/* ── Suggestions ──────────────────────────────────────────── */}
-      {!loading && hasSuggestions && (
+      {!loading && suggestions.length > 0 && (
         <section>
           <div className="mb-4">
             <h2 className="text-base font-semibold text-slate-200">
               {items.length > 0 ? 'You might also like' : 'Suggested companies'}
             </h2>
             <p className="text-slate-500 text-xs mt-0.5">
-              {items.length > 0
-                ? 'Based on the sectors you follow'
-                : 'Top-rated companies across all sectors'}
+              {items.length > 0 ? 'Based on the sectors you follow' : 'Top-rated companies across all sectors'}
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {suggestions.map((item) => (
+            {suggestions.map(item => (
               <SuggestionCard
                 key={item.filing_id ?? item.ticker}
                 item={item}
@@ -121,10 +151,7 @@ function SkeletonGrid() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div
-          key={i}
-          className="bg-slate-800 border border-slate-700 rounded-xl p-5 animate-pulse space-y-3"
-        >
+        <div key={i} className="bg-slate-800 border border-slate-700 rounded-xl p-5 animate-pulse space-y-3">
           <div className="h-4 bg-slate-700 rounded w-1/3" />
           <div className="h-2 bg-slate-700 rounded w-full" />
           <div className="h-2 bg-slate-700 rounded w-2/3" />
