@@ -24,6 +24,7 @@ from .fmp import FmpClient
 from .normaliser import normalise_transcript, normalise_prices
 from .prices import fetch_price_window
 from .producer import KafkaProducer
+from . import rss_feed
 from .s3_archive import archive_transcript
 from .store import ProcessedStore
 
@@ -243,6 +244,22 @@ def run_ingest_job(
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+def _seed_company_universe(edgar: EdgarClient, store: ProcessedStore) -> None:
+    """Populate the companies collection from EDGAR's full ticker→CIK map.
+
+    Only runs when the collection has fewer than 1 000 entries so that normal
+    restarts don't trigger an unnecessary EDGAR download.
+    """
+    if not store.needs_company_seed():
+        logger.info("Company universe already seeded — skipping")
+        return
+    logger.info("Seeding company universe from EDGAR company_tickers.json …")
+    companies = edgar.get_all_companies()
+    n = store.seed_companies(companies)
+    logger.info("Company universe seed complete — %d companies upserted (%d total in map)",
+                n, len(companies))
+
+
 def main() -> None:
     cfg = Config.from_env()
 
@@ -251,10 +268,19 @@ def main() -> None:
     store = ProcessedStore(mongo_uri=cfg.mongo_uri)
     fmp = FmpClient(cfg.fmp_api_key) if cfg.fmp_api_key else None
 
-    # Run once immediately so you don't wait until the scheduled hour
+    # Seed the full company universe on startup (no-op if already done).
+    # This gives the BFF search endpoint a complete universe to query against.
+    _seed_company_universe(edgar, store)
+
+    # Run the per-ticker scan immediately so you don't wait until the first hour
     run_ingest_job(cfg, edgar, producer, store, fmp)
 
+    # Run the RSS poll immediately too — catches any filings since last run
+    rss_feed.poll(edgar, store, producer)
+
     scheduler = BlockingScheduler(timezone="UTC")
+
+    # ── Per-ticker backfill scan (every N hours) ───────────────────────────────
     scheduler.add_job(
         run_ingest_job,
         trigger="interval",
@@ -265,7 +291,24 @@ def main() -> None:
         misfire_grace_time=3600,
     )
 
-    logger.info("Scheduler started — running every %d hour(s)", cfg.schedule_interval_hours)
+    # ── Universal RSS feed poll (every N minutes) ──────────────────────────────
+    # Polls the EDGAR live 8-K Atom feed to catch earnings filings from any
+    # public company — no ticker whitelist needed.
+    scheduler.add_job(
+        rss_feed.poll,
+        trigger="interval",
+        minutes=cfg.rss_poll_interval_minutes,
+        args=[edgar, store, producer],
+        id="rss_feed_poll",
+        max_instances=1,
+        misfire_grace_time=300,
+    )
+
+    logger.info(
+        "Scheduler started — per-ticker every %d hour(s), RSS every %d minute(s)",
+        cfg.schedule_interval_hours,
+        cfg.rss_poll_interval_minutes,
+    )
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):

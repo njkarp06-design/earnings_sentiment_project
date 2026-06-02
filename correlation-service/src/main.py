@@ -115,6 +115,9 @@ def main() -> None:
         enable_auto_commit=False,
         value_deserializer=lambda b: json.loads(b.decode("utf-8")),
         key_deserializer=lambda b: b.decode("utf-8") if b else None,
+        # Allow up to 10 min between polls — FMP/yfinance fetches can be slow
+        # and the default 5 min causes Kafka to rebalance and crash the consumer.
+        max_poll_interval_ms=600_000,
     )
 
     mongo = MongoClient(cfg.mongo_uri)
