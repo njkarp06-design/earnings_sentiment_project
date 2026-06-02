@@ -90,4 +90,13 @@ def compute_post_call_returns(ticker: str, call_date: str, fetch_days: int = 12)
         else:
             result[field] = None  # not enough data yet
 
+    # Build an 8-point daily price series (day 0 = call date baseline, days 1-7).
+    # Capped at however many trading days are actually available.
+    price_series = [{"day": 0, "close": round(base_close, 4), "pct": 0.0}]
+    for i, (_, row) in enumerate(after_baseline.iloc[:7].iterrows(), start=1):
+        close = float(row["Close"])
+        pct = (close - base_close) / base_close * 100
+        price_series.append({"day": i, "close": round(close, 4), "pct": round(pct, 4)})
+    result["price_series"] = price_series
+
     return result

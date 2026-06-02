@@ -35,6 +35,10 @@ export default function Navbar() {
           <Link href="/" className={linkClass('/')}>Feed</Link>
           <Link href="/leaderboard" className={linkClass('/leaderboard')}>Leaderboard</Link>
 
+          {authed && (
+            <Link href="/portfolio" className={linkClass('/portfolio')}>Portfolio</Link>
+          )}
+
           {authed ? (
             <button
               onClick={logout}

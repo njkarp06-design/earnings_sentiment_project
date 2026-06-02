@@ -17,6 +17,7 @@ const schema = new mongoose.Schema(
     return_1d:        Number,
     return_3d:        Number,
     return_7d:        Number,
+    price_series:     [mongoose.Schema.Types.Mixed],
   },
   { strict: false },
 );
