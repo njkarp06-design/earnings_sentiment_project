@@ -32,4 +32,52 @@ router.get('/:ticker/latest', async (req, res, next) => {
   }
 });
 
+// GET /companies/:ticker/accuracy
+// Returns score-bucket stats vs. avg returns — the "track record" feature.
+router.get('/:ticker/accuracy', async (req, res, next) => {
+  try {
+    const ticker = req.params.ticker.toUpperCase();
+    const items = await PriceReaction
+      .find({ ticker, return_7d: { $ne: null } })
+      .select('confidence_score return_1d return_3d return_7d');
+
+    if (items.length === 0) {
+      return res.json({ buckets: [], total: 0 });
+    }
+
+    const buckets = { high: [], mid: [], low: [] };
+    for (const item of items) {
+      const s = item.confidence_score;
+      if (s >= 70) buckets.high.push(item);
+      else if (s >= 45) buckets.mid.push(item);
+      else buckets.low.push(item);
+    }
+
+    const avg = (arr, field) => {
+      const vals = arr.map(i => i[field]).filter(v => v != null);
+      if (!vals.length) return null;
+      return parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2));
+    };
+
+    const result = [
+      { bucket: 'high', range: '≥70',   ...summarise(buckets.high,  avg) },
+      { bucket: 'mid',  range: '45–70', ...summarise(buckets.mid,   avg) },
+      { bucket: 'low',  range: '<45',   ...summarise(buckets.low,   avg) },
+    ].filter(b => b.count > 0);
+
+    res.json({ buckets: result, total: items.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+function summarise(arr, avg) {
+  return {
+    count:         arr.length,
+    avg_return_1d: avg(arr, 'return_1d'),
+    avg_return_3d: avg(arr, 'return_3d'),
+    avg_return_7d: avg(arr, 'return_7d'),
+  };
+}
+
 module.exports = router;

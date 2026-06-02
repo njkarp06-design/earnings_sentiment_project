@@ -172,6 +172,10 @@ services:
       MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
       JWT_SECRET: ${JWT_SECRET:-changeme}
       PORT: 3001
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      FMP_API_KEY: ${FMP_API_KEY:-}
+      TICKERS: ${TICKERS:-AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,JPM,JNJ,XOM}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
     env_file:
       - path: .env
         required: false
