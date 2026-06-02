@@ -108,7 +108,7 @@ export default function FeedCard({ item, showNextCall = false }) {
       else await add(item.ticker);
     } catch (err) {
       setBookmarkError(err.message || 'Failed');
-      setTimeout(() => setBookmarkError(null), 3000);
+      setTimeout(() => setBookmarkError(null), 6000);
     } finally {
       setSaving(false);
     }
@@ -162,7 +162,7 @@ export default function FeedCard({ item, showNextCall = false }) {
                   <BookmarkIcon filled={saved} />
                 </button>
                 {bookmarkError && (
-                  <span className="text-[10px] text-red-400 leading-none">{bookmarkError}</span>
+                  <span className="text-xs text-red-400 leading-none max-w-[120px] text-right">{bookmarkError}</span>
                 )}
               </div>
             )}
