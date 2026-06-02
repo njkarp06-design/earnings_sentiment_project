@@ -1,4 +1,5 @@
 import logging
+from typing import Set
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
 
@@ -26,6 +27,19 @@ class ProcessedStore:
             self._col.insert_one({"filing_id": filing_id})
         except DuplicateKeyError:
             pass  # already marked — harmless
+
+    def get_watchlist_tickers(self) -> Set[str]:
+        """Return all unique tickers across every user's watchlist."""
+        try:
+            db = self._client.get_default_database()
+            result = list(db.users.aggregate([
+                {"$unwind": "$watchlist"},
+                {"$group": {"_id": None, "tickers": {"$addToSet": "$watchlist"}}},
+            ]))
+            return {t.upper() for t in result[0]["tickers"]} if result else set()
+        except Exception as exc:
+            logger.warning("Could not fetch watchlist tickers from MongoDB: %s", exc)
+            return set()
 
     def close(self) -> None:
         self._client.close()

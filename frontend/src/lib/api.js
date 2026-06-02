@@ -33,6 +33,16 @@ export const searchCompanies = (q) => apiFetch(`/search?q=${encodeURIComponent(q
 
 // ── Auth endpoints ────────────────────────────────────────────────────────────
 
+export const getMe = () =>
+  apiFetch('/auth/me', { headers: authHeaders() });
+
+export const updatePreferences = (prefs) =>
+  apiFetch('/auth/preferences', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(prefs),
+  });
+
 export const login = (email, password) =>
   apiFetch('/auth/login', {
     method: 'POST',
