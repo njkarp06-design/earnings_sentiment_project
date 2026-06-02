@@ -152,6 +152,10 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
       PRICE_FETCH_DAYS: ${PRICE_FETCH_DAYS:-12}
+      NOTIFICATION_PROVIDER: ${NOTIFICATION_PROVIDER:-none}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      NOTIFY_FROM_EMAIL: ${NOTIFY_FROM_EMAIL:-onboarding@resend.dev}
     dns:
       - 8.8.8.8
       - 8.8.4.4
