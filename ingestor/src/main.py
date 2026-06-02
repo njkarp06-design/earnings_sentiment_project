@@ -24,6 +24,7 @@ from .fmp import FmpClient
 from .normaliser import normalise_transcript, normalise_prices
 from .prices import fetch_price_window
 from .producer import KafkaProducer
+from .s3_archive import archive_transcript
 from .store import ProcessedStore
 
 load_dotenv()
@@ -174,6 +175,7 @@ def _publish_transcript_and_prices(
         raw_text=raw_text,
         source=source,
     )
+    archive_transcript(t_msg)  # no-op locally; writes to S3 on AWS
     try:
         producer.publish_transcript(t_msg)
     except Exception as exc:

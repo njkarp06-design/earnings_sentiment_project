@@ -1,0 +1,36 @@
+# Copy this file to infra/terraform/terraform.tfvars and fill in real values.
+# NEVER commit terraform.tfvars to git — it contains secrets.
+
+aws_region   = "us-east-1"
+environment  = "prod"
+project_name = "esp"
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+
+# MongoDB Atlas connection string.
+# Setup steps:
+#   1. Create a free cluster at cloud.mongodb.com
+#   2. Run `terraform apply` to get `nat_gateway_ip` output
+#   3. Atlas → Security → Network Access → Add IP → paste the NAT gateway IP
+#   4. Atlas → Security → Database Access → create a user
+#   5. Atlas → Clusters → Connect → copy the driver connection string
+mongo_uri = "mongodb+srv://<user>:<password>@<cluster>.mongodb.net/earnings_sentiment?retryWrites=true&w=majority"
+
+# From console.anthropic.com → API Keys
+anthropic_api_key = "sk-ant-..."
+
+# Generate a strong random secret: openssl rand -hex 32
+jwt_secret = ""
+
+# Optional — Financial Modeling Prep (free tier: financialmodelingprep.com)
+# Leave empty to disable the FMP transcript fallback
+fmp_api_key = ""
+
+# ── Application config ────────────────────────────────────────────────────────
+
+edgar_user_agent = "EarningsSentimentResearch contact@example.com"
+tickers          = "AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,JPM,JNJ,XOM"
+lookback_days    = 30
+schedule_hour    = 6
+scoring_model    = "claude-sonnet-4-6"
+price_fetch_days = 12

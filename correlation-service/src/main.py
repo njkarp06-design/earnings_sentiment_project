@@ -123,7 +123,7 @@ def main() -> None:
                 # Hard failure (bad ticker, network error) — commit and move on
                 # to avoid blocking the consumer forever.
                 logger.warning("No price data for %s %s — writing null returns", ticker, call_date)
-                returns = {"call_date_close": None, "return_1d": None, "return_3d": None, "return_7d": None}
+                returns = {"call_date_close": None, "return_1d": None, "return_3d": None, "return_7d": None, "price_series": None}
 
             correlated_at = datetime.now(timezone.utc).isoformat()
 
