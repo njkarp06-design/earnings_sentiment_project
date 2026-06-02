@@ -1,11 +1,15 @@
 import clsx from 'clsx';
 
-export default function ReturnBadge({ value, label }) {
+export default function ReturnBadge({ value, label, pending = false }) {
   if (value == null) {
     return (
       <div className="text-center">
-        <div className="text-xs text-slate-600">—</div>
-        <div className="text-[10px] text-slate-600 mt-0.5">{label}</div>
+        <div className={clsx('text-xs', pending ? 'text-amber-500/80 animate-pulse' : 'text-slate-600')}>
+          {pending ? '···' : '—'}
+        </div>
+        <div className={clsx('text-[10px] mt-0.5', pending ? 'text-amber-600/60' : 'text-slate-600')}>
+          {label}
+        </div>
       </div>
     );
   }

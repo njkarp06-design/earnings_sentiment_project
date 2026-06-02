@@ -34,6 +34,7 @@ export default function Navbar() {
         <div className="flex items-center gap-6 text-sm">
           <Link href="/" className={linkClass('/')}>Feed</Link>
           <Link href="/leaderboard" className={linkClass('/leaderboard')}>Leaderboard</Link>
+          <Link href="/calendar" className={linkClass('/calendar')}>Calendar</Link>
 
           {authed && (
             <Link href="/portfolio" className={linkClass('/portfolio')}>Portfolio</Link>

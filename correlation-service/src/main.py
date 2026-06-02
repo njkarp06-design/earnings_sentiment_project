@@ -20,12 +20,14 @@ already-processed records.  Offsets are committed only on success.
 import json
 import logging
 import threading
+import time
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from kafka import KafkaConsumer
 from pymongo import MongoClient
 
+from .backfill import backfill_pending_returns
 from .config import Config
 from .prices import compute_post_call_returns
 from .store import already_correlated, upsert_price_reaction, upsert_raw_price
@@ -40,6 +42,19 @@ logger = logging.getLogger(__name__)
 
 TOPIC_SCORED = "scored-transcripts"
 TOPIC_PRICES = "raw-prices"
+
+
+# ── Background: daily backfill of pending returns ────────────────────────────
+
+def _backfill_loop(mongo_uri: str) -> None:
+    mongo = MongoClient(mongo_uri)
+    db = mongo.earnings_sentiment
+    while True:
+        try:
+            backfill_pending_returns(db)
+        except Exception as exc:
+            logger.warning("Backfill run failed: %s", exc)
+        time.sleep(24 * 3600)
 
 
 # ── Background: raw-prices → MongoDB raw_prices ───────────────────────────────
@@ -74,6 +89,14 @@ def _raw_prices_loop(bootstrap_servers: str, mongo_uri: str) -> None:
 
 def main() -> None:
     cfg = Config.from_env()
+
+    # Background: daily backfill of pending 1d/3d/7d returns
+    threading.Thread(
+        target=_backfill_loop,
+        args=(cfg.mongo_uri,),
+        daemon=True,
+        name="returns-backfill",
+    ).start()
 
     # Background raw-prices consumer (daemon — exits when main thread exits)
     threading.Thread(
