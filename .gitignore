@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Un-ignore frontend JS lib directory (Python 'lib/' pattern above would otherwise exclude it)
+!frontend/src/lib/
+!frontend/src/lib/**
