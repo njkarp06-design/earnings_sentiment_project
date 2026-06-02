@@ -48,31 +48,27 @@ function isLive(callDateStr) {
   return Date.now() - new Date(callDateStr + 'T12:00:00').getTime() < 24 * 60 * 60 * 1000;
 }
 
-// Precise relative time from an ISO timestamp (correlated_at).
-// Falls back to null after 7 days so the caller can show a plain date instead.
-function fmtTimestamp(isoStr) {
-  if (!isoStr) return null;
-  const diff = Date.now() - new Date(isoStr).getTime();
-  if (diff < 0) return null;
-  const secs  = Math.floor(diff / 1000);
-  const mins  = Math.floor(diff / 60_000);
-  const hours = Math.floor(diff / 3_600_000);
-  const days  = Math.floor(diff / 86_400_000);
-  if (secs  <  60) return 'just now';
-  if (mins  <  60) return `${mins}m ago`;
-  if (hours <  24) return `${hours}h ago`;
-  if (days  <   7) return `${days} ${days === 1 ? 'day' : 'days'} ago`;
-  return null;
+// Days elapsed since the earnings call date (calendar days, not 24h rolling).
+function fmtCallDateRelative(dateStr) {
+  if (!dateStr) return null;
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const callDay = new Date(dateStr + 'T12:00:00');
+  const diffDays = Math.round((today - callDay) / 86_400_000);
+  if (diffDays <= 0)  return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7)   return `${diffDays} days ago`;
+  return null; // fall back to full formatted date
 }
 
-// Unified time label — merges live badge + relative time into one element.
-function TimeLabel({ live, correlatedAt, callDate }) {
-  const relative = fmtTimestamp(correlatedAt);
-  if (live && relative) {
+// Unified time label — shows when the earnings call actually occurred.
+function TimeLabel({ live, callDate }) {
+  const relative = fmtCallDateRelative(callDate);
+  if (live) {
     return (
       <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-400">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        Live · {relative}
+        Live · Today
       </span>
     );
   }
@@ -147,7 +143,7 @@ export default function FeedCard({ item, showNextCall = false }) {
           </div>
 
           <div className="flex items-center gap-2 shrink-0 mt-0.5">
-            <TimeLabel live={live} correlatedAt={item.correlated_at} callDate={item.call_date} />
+            <TimeLabel live={live} callDate={item.call_date} />
             {isLoggedIn && (
               <div className="flex flex-col items-end gap-0.5">
                 <button
