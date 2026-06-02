@@ -48,6 +48,7 @@ function BookmarkIcon({ filled }) {
 export default function SearchOverlay({ item, onClose }) {
   const { watchlist, add, remove, isLoggedIn } = usePortfolio();
   const [saving, setSaving] = useState(false);
+  const [portfolioError, setPortfolioError] = useState(null);
   const [inspecting, setInspecting] = useState(false);
 
   const saved = watchlist.includes(item.ticker);
@@ -68,9 +69,13 @@ export default function SearchOverlay({ item, onClose }) {
 
   const handlePortfolioToggle = async () => {
     setSaving(true);
+    setPortfolioError(null);
     try {
       if (saved) await remove(item.ticker);
       else await add(item.ticker);
+    } catch (err) {
+      setPortfolioError(err.message || 'Failed — try signing in again');
+      setTimeout(() => setPortfolioError(null), 3000);
     } finally {
       setSaving(false);
     }
@@ -159,49 +164,54 @@ export default function SearchOverlay({ item, onClose }) {
         </div>
 
         {/* ── Footer CTAs ─────────────────────────────────────────── */}
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-700/50 bg-slate-800/60">
-          <Link
-            href={`/companies/${item.ticker}`}
-            onClick={onClose}
-            className="text-sm text-blue-400 hover:text-blue-300 transition-colors font-medium"
-          >
-            View full history →
-          </Link>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setInspecting(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
-            >
-              <SparkleIcon />
-              Deep Analysis
-            </button>
-
-          {isLoggedIn ? (
-            <button
-              onClick={handlePortfolioToggle}
-              disabled={saving}
-              className={clsx(
-                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50',
-                saved
-                  ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
-                  : 'bg-blue-600 hover:bg-blue-500 text-white',
-              )}
-            >
-              <BookmarkIcon filled={saved} />
-              {saving ? '…' : saved ? 'Saved' : 'Add to Portfolio'}
-            </button>
-          ) : (
+        <div className="flex flex-col gap-2 px-6 py-4 border-t border-slate-700/50 bg-slate-800/60">
+          <div className="flex items-center justify-between gap-3">
             <Link
-              href="/login"
+              href={`/companies/${item.ticker}`}
               onClick={onClose}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+              className="text-sm text-blue-400 hover:text-blue-300 transition-colors font-medium"
             >
-              <BookmarkIcon filled={false} />
-              Sign in to save
+              View full history →
             </Link>
-          )}
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setInspecting(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+              >
+                <SparkleIcon />
+                Deep Analysis
+              </button>
+
+              {isLoggedIn ? (
+                <button
+                  onClick={handlePortfolioToggle}
+                  disabled={saving}
+                  className={clsx(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50',
+                    saved
+                      ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
+                      : 'bg-blue-600 hover:bg-blue-500 text-white',
+                  )}
+                >
+                  <BookmarkIcon filled={saved} />
+                  {saving ? '…' : saved ? 'Saved' : 'Add to Portfolio'}
+                </button>
+              ) : (
+                <Link
+                  href="/login"
+                  onClick={onClose}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                >
+                  <BookmarkIcon filled={false} />
+                  Sign in to save
+                </Link>
+              )}
+            </div>
           </div>
+          {portfolioError && (
+            <p className="text-xs text-red-400 text-right">{portfolioError}</p>
+          )}
         </div>
       </div>
     </div>
