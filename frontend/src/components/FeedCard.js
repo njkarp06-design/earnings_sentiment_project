@@ -48,6 +48,40 @@ function isLive(callDateStr) {
   return Date.now() - new Date(callDateStr + 'T12:00:00').getTime() < 24 * 60 * 60 * 1000;
 }
 
+// Precise relative time from an ISO timestamp (correlated_at).
+// Falls back to null after 7 days so the caller can show a plain date instead.
+function fmtTimestamp(isoStr) {
+  if (!isoStr) return null;
+  const diff = Date.now() - new Date(isoStr).getTime();
+  if (diff < 0) return null;
+  const secs  = Math.floor(diff / 1000);
+  const mins  = Math.floor(diff / 60_000);
+  const hours = Math.floor(diff / 3_600_000);
+  const days  = Math.floor(diff / 86_400_000);
+  if (secs  <  60) return 'just now';
+  if (mins  <  60) return `${mins}m ago`;
+  if (hours <  24) return `${hours}h ago`;
+  if (days  <   7) return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+  return null;
+}
+
+// Unified time label — merges live badge + relative time into one element.
+function TimeLabel({ live, correlatedAt, callDate }) {
+  const relative = fmtTimestamp(correlatedAt);
+  if (live && relative) {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-400">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        Live · {relative}
+      </span>
+    );
+  }
+  if (relative) {
+    return <span className="text-slate-400 text-xs">{relative}</span>;
+  }
+  return <span className="text-slate-500 text-xs">{fmtDate(callDate)}</span>;
+}
+
 function estimateNextCall(callDateStr) {
   const d = new Date(callDateStr + 'T12:00:00');
   d.setDate(d.getDate() + 91);
@@ -113,13 +147,7 @@ export default function FeedCard({ item, showNextCall = false }) {
           </div>
 
           <div className="flex items-center gap-2 shrink-0 mt-0.5">
-            {live && (
-              <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live
-              </span>
-            )}
-            <span className="text-slate-500 text-xs">{fmtDate(item.call_date)}</span>
+            <TimeLabel live={live} correlatedAt={item.correlated_at} callDate={item.call_date} />
             {isLoggedIn && (
               <div className="flex flex-col items-end gap-0.5">
                 <button
