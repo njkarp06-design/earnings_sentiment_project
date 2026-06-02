@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 # ── Pass 1: EDGAR ─────────────────────────────────────────────────────────────
 
 def _edgar_scan(
-    cfg: Config,
+    tickers: list,
     edgar: EdgarClient,
     producer: KafkaProducer,
     store: ProcessedStore,
@@ -51,7 +51,7 @@ def _edgar_scan(
     """
     found_tickers: Set[str] = set()
 
-    for ticker in cfg.tickers:
+    for ticker in tickers:
         info = edgar.get_company_info(ticker)
         if not info:
             logger.warning("EDGAR: no CIK for %s — skipping", ticker)
@@ -98,7 +98,7 @@ def _edgar_scan(
 # ── Pass 2: FMP fallback ──────────────────────────────────────────────────────
 
 def _fmp_scan(
-    cfg: Config,
+    tickers: list,
     fmp: FmpClient,
     producer: KafkaProducer,
     store: ProcessedStore,
@@ -109,7 +109,7 @@ def _fmp_scan(
     For tickers EDGAR didn't find anything for, query FMP.
     skip_tickers is the set of tickers already covered by EDGAR this run.
     """
-    targets = [t for t in cfg.tickers if t not in skip_tickers]
+    targets = [t for t in tickers if t not in skip_tickers]
     if not targets:
         logger.info("FMP: EDGAR covered all tickers — no fallback needed")
         return
@@ -205,23 +205,33 @@ def run_ingest_job(
     store: ProcessedStore,
     fmp: Optional[FmpClient],
 ) -> None:
+    # Merge static env tickers with every user's portfolio watchlist
+    watchlist_tickers = store.get_watchlist_tickers()
+    all_tickers = sorted(set(cfg.tickers) | watchlist_tickers)
+    new_from_watchlist = watchlist_tickers - set(cfg.tickers)
+
     since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
         days=cfg.lookback_days
     )
     logger.info(
-        "Ingest run started | tickers=%d | since=%s | fmp=%s",
+        "Ingest run started | env=%d | watchlist=%d (+%d new) | total=%d | since=%s | fmp=%s",
         len(cfg.tickers),
+        len(watchlist_tickers),
+        len(new_from_watchlist),
+        len(all_tickers),
         since.date(),
         "enabled" if fmp else "disabled",
     )
+    if new_from_watchlist:
+        logger.info("Watchlist additions: %s", sorted(new_from_watchlist))
 
     # Pass 1: EDGAR
-    edgar_found = _edgar_scan(cfg, edgar, producer, store, since)
+    edgar_found = _edgar_scan(all_tickers, edgar, producer, store, since)
     logger.info("EDGAR pass complete | transcripts found for: %s", sorted(edgar_found))
 
     # Pass 2: FMP fallback (only if key is configured)
     if fmp:
-        _fmp_scan(cfg, fmp, producer, store, since, skip_tickers=edgar_found)
+        _fmp_scan(all_tickers, fmp, producer, store, since, skip_tickers=edgar_found)
     elif cfg.fmp_api_key == "":
         logger.info("FMP disabled — set FMP_API_KEY to enable fallback")
 
@@ -244,16 +254,15 @@ def main() -> None:
     scheduler = BlockingScheduler(timezone="UTC")
     scheduler.add_job(
         run_ingest_job,
-        trigger="cron",
-        hour=cfg.schedule_hour,
-        minute=0,
+        trigger="interval",
+        hours=cfg.schedule_interval_hours,
         args=[cfg, edgar, producer, store, fmp],
-        id="nightly_ingest",
+        id="periodic_ingest",
         max_instances=1,
         misfire_grace_time=3600,
     )
 
-    logger.info("Scheduler started — next run at %02d:00 UTC daily", cfg.schedule_hour)
+    logger.info("Scheduler started — running every %d hour(s)", cfg.schedule_interval_hours)
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
