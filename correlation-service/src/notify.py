@@ -31,8 +31,11 @@ def notify_portfolio_users(db, doc: dict) -> None:
     if not ticker or not call_date:
         return
 
-    # Find users who follow this ticker
-    users = list(db.users.find({"watchlist": ticker}, {"email": 1, "_id": 1}))
+    # Find users who follow this ticker AND have opted in to notifications
+    users = list(db.users.find(
+        {"watchlist": ticker, "notifications_enabled": True},
+        {"email": 1, "notifications_email": 1, "_id": 1},
+    ))
     if not users:
         return
 
@@ -59,7 +62,8 @@ def notify_portfolio_users(db, doc: dict) -> None:
         if user_id in already:
             continue
         try:
-            _send(user["email"], doc)
+            to = user.get("notifications_email") or user["email"]
+            _send(to, doc)
             db._sent_notifications.insert_one({
                 "user_id": user_id,
                 "ticker":  ticker,
