@@ -1,10 +1,22 @@
 const router     = require('express').Router();
 const Anthropic  = require('@anthropic-ai/sdk');
+const rateLimit  = require('express-rate-limit');
 const requireAuth = require('../middleware/auth');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// 10 deep-analysis calls per user per hour keeps costs bounded.
+const inspectLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => req.user?.sub || req.ip,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many analysis requests — try again in an hour' },
+});
+
 router.use(requireAuth);
+router.use(inspectLimiter);
 
 // POST /inspect
 // Streams a structured Claude analysis of an earnings call via SSE.

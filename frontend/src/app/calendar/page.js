@@ -161,10 +161,10 @@ function EventTable({ events }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-700/50">
-          {events.map((e, i) => {
+          {events.map((e) => {
             const countdown = daysUntil(e.date);
             return (
-              <tr key={i} className="hover:bg-slate-700/30 transition-colors">
+              <tr key={`${e.ticker}-${e.date}`} className="hover:bg-slate-700/30 transition-colors">
                 <td className="px-5 py-3 text-slate-400 tabular-nums">
                   <span>{fmtDate(e.date)}</span>
                   {countdown && (
