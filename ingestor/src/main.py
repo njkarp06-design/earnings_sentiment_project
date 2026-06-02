@@ -59,6 +59,7 @@ def _edgar_scan(
 
         cik = info["cik"]
         company_name = info["name"]
+        store.upsert_company(ticker, company_name)
 
         try:
             filings = edgar.get_recent_8k_filings(cik, since)
@@ -79,7 +80,8 @@ def _edgar_scan(
                 result = edgar.fetch_transcript(cik, acc_no)
             except Exception as exc:
                 logger.error("EDGAR: error on %s: %s", acc_no, exc)
-                store.mark_processed(acc_no)
+                # Do NOT mark processed — transient network/rate-limit errors
+                # should retry on the next scheduled run.
                 continue
 
             if not result:
@@ -144,6 +146,7 @@ def _fmp_scan(
 
             # FMP date field: "2024-02-01 17:00:00" → "2024-02-01"
             call_date = transcript["date"][:10]
+            store.upsert_company(ticker, ticker)  # FMP has no company name in the transcript
 
             _publish_transcript_and_prices(
                 ticker, ticker, call_date, filing_id, "",

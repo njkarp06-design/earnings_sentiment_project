@@ -20,6 +20,21 @@ _API_KEY    = os.getenv("RESEND_API_KEY", "")
 _APP_URL    = os.getenv("APP_URL", "http://localhost:3000")
 _FROM_EMAIL = os.getenv("NOTIFY_FROM_EMAIL", "onboarding@resend.dev")
 
+# Tracks whether the idempotency index has been created this process lifetime.
+_notification_index_ready = False
+
+
+def _ensure_notification_index(db) -> None:
+    global _notification_index_ready
+    if _notification_index_ready:
+        return
+    db._sent_notifications.create_index(
+        [("user_id", 1), ("ticker", 1), ("call_date", 1)],
+        unique=True,
+        background=True,
+    )
+    _notification_index_ready = True
+
 
 def notify_portfolio_users(db, doc: dict) -> None:
     """Send email to all users with this ticker in their watchlist."""
@@ -39,12 +54,7 @@ def notify_portfolio_users(db, doc: dict) -> None:
     if not users:
         return
 
-    # Ensure idempotency index exists
-    db._sent_notifications.create_index(
-        [("user_id", 1), ("ticker", 1), ("call_date", 1)],
-        unique=True,
-        background=True,
-    )
+    _ensure_notification_index(db)
 
     # Which users already notified for this call?
     already = {
