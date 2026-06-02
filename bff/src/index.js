@@ -32,6 +32,7 @@ app.use('/suggestions', require('./routes/suggestions'));
 app.use('/pulse',       require('./routes/pulse'));
 app.use('/companies',   require('./routes/companies'));
 app.use('/leaderboard', require('./routes/leaderboard'));
+app.use('/calendar',    require('./routes/calendar'));
 
 // ── 404 handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
