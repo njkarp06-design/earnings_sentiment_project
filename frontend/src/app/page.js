@@ -2,11 +2,15 @@
 import { useEffect, useState } from 'react';
 import { getFeed } from '@/lib/api';
 import FeedCard from '@/components/FeedCard';
+import SearchBar from '@/components/SearchBar';
+import SearchOverlay from '@/components/SearchOverlay';
+import PulseBar from '@/components/PulseBar';
 
 export default function DashboardPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [overlayItem, setOverlayItem] = useState(null);
 
   useEffect(() => {
     getFeed()
@@ -17,11 +21,17 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-100">Recent Earnings Calls</h1>
         <p className="text-slate-400 mt-1 text-sm">
-          CEO confidence scores and post-call stock reactions — latest 20 calls
+          CEO confidence scores and post-call stock reactions
         </p>
+      </div>
+
+      <PulseBar />
+
+      <div className="mb-8">
+        <SearchBar onResult={setOverlayItem} />
       </div>
 
       {loading && <SkeletonGrid />}
@@ -43,9 +53,16 @@ export default function DashboardPage() {
       {!loading && !error && items.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => (
-            <FeedCard key={item.filing_id ?? `${item.ticker}-${item.call_date}`} item={item} />
+            <FeedCard
+              key={item.filing_id ?? `${item.ticker}-${item.call_date}`}
+              item={item}
+            />
           ))}
         </div>
+      )}
+
+      {overlayItem && (
+        <SearchOverlay item={overlayItem} onClose={() => setOverlayItem(null)} />
       )}
     </div>
   );
