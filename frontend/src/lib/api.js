@@ -27,7 +27,7 @@ export const getCalendar = (from, to) => {
   const params = new URLSearchParams();
   if (from) params.set('from', from);
   if (to)   params.set('to', to);
-  return apiFetch(`/calendar${params.toString() ? '?' + params : ''}`);
+  return apiFetch(`/calendar${params.toString() ? '?' + params : ''}`, { headers: authHeaders() });
 };
 export const searchCompanies = (q) => apiFetch(`/search?q=${encodeURIComponent(q)}`);
 
