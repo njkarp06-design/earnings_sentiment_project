@@ -10,8 +10,20 @@ class Config:
 
     @classmethod
     def from_env(cls) -> "Config":
+        kafka = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+        mongo = os.getenv("MONGO_URI")
+        if not kafka:
+            raise RuntimeError(
+                "KAFKA_BOOTSTRAP_SERVERS is required but not set — "
+                "add it to your .env or environment"
+            )
+        if not mongo:
+            raise RuntimeError(
+                "MONGO_URI is required but not set — "
+                "add it to your .env or environment"
+            )
         return cls(
-            kafka_bootstrap_servers=os.environ["KAFKA_BOOTSTRAP_SERVERS"],
-            mongo_uri=os.environ["MONGO_URI"],
+            kafka_bootstrap_servers=kafka,
+            mongo_uri=mongo,
             price_fetch_days=int(os.getenv("PRICE_FETCH_DAYS", "12")),
         )

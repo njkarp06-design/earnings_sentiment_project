@@ -42,6 +42,11 @@ router.get('/', async (req, res, next) => {
     const from = req.query.from || today.toISOString().slice(0, 10);
     const to   = req.query.to   || future.toISOString().slice(0, 10);
 
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    if (!DATE_RE.test(from) || !DATE_RE.test(to)) {
+      return res.status(400).json({ error: 'from and to must be YYYY-MM-DD dates' });
+    }
+
     const fmpRes = await fetch(
       `${FMP_BASE}/earnings-calendar?from=${from}&to=${to}&apikey=${FMP_API_KEY}`
     );

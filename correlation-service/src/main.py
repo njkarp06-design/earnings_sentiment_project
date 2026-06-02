@@ -25,13 +25,13 @@ from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from kafka import KafkaConsumer
-from pymongo import MongoClient
+from pymongo import DESCENDING, MongoClient
 
 from .backfill import backfill_pending_returns
 from .config import Config
 from .notify import notify_portfolio_users
 from .prices import compute_post_call_returns
-from .store import already_correlated, upsert_price_reaction, upsert_raw_price
+from .store import already_correlated, get_company_sector, upsert_price_reaction, upsert_raw_price
 
 load_dotenv()
 
@@ -151,16 +151,34 @@ def main() -> None:
 
             correlated_at = datetime.now(timezone.utc).isoformat()
 
+            # ── Sector (denormalized from companies collection) ────────────────
+            sector = get_company_sector(db, ticker)
+
+            # ── Trend (compare confidence vs. most recent previous call) ──────
+            current_score = msg.get("confidence_score")
+            prev = db.price_reactions.find_one(
+                {"ticker": ticker, "call_date": {"$lt": call_date}},
+                sort=[("call_date", DESCENDING)],
+                projection={"confidence_score": 1},
+            )
+            if prev is not None and prev.get("confidence_score") is not None and current_score is not None:
+                diff = current_score - prev["confidence_score"]
+                trend = "up" if diff >= 5 else "down" if diff <= -5 else "neutral"
+            else:
+                trend = None
+
             doc = {
                 "filing_id": filing_id,
                 "ticker": ticker,
                 "company_name": msg.get("company_name", ""),
+                "sector": sector,
                 "call_date": call_date,
-                "confidence_score": msg.get("confidence_score"),
+                "confidence_score": current_score,
                 "key_phrases": msg.get("key_phrases", []),
                 "model_used": msg.get("model_used", ""),
                 "scored_at": msg.get("scored_at", ""),
                 "correlated_at": correlated_at,
+                "trend": trend,
                 **returns,
             }
 
