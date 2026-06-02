@@ -1,8 +1,9 @@
-const router     = require('express').Router();
-const bcrypt     = require('bcryptjs');
-const jwt        = require('jsonwebtoken');
-const rateLimit  = require('express-rate-limit');
-const User       = require('../models/User');
+const router      = require('express').Router();
+const bcrypt      = require('bcryptjs');
+const jwt         = require('jsonwebtoken');
+const rateLimit   = require('express-rate-limit');
+const User        = require('../models/User');
+const requireAuth = require('../middleware/auth');
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -54,6 +55,52 @@ router.post('/login', async (req, res, next) => {
       { expiresIn: '7d' },
     );
     res.json({ token });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /auth/me — returns current user's notification preferences
+router.get('/me', requireAuth, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.sub)
+      .select('email notifications_enabled notifications_email');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({
+      email:                  user.email,
+      notifications_enabled:  user.notifications_enabled ?? false,
+      notifications_email:    user.notifications_email  || '',
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /auth/preferences — update notification email + enabled flag
+router.patch('/preferences', requireAuth, async (req, res, next) => {
+  try {
+    const { notifications_enabled, notifications_email } = req.body;
+    const update = {};
+    if (typeof notifications_enabled === 'boolean') {
+      update.notifications_enabled = notifications_enabled;
+    }
+    if (typeof notifications_email === 'string') {
+      const trimmed = notifications_email.toLowerCase().trim();
+      if (trimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+        return res.status(400).json({ error: 'Invalid email address' });
+      }
+      update.notifications_email = trimmed;
+    }
+    const user = await User.findByIdAndUpdate(
+      req.user.sub,
+      { $set: update },
+      { new: true },
+    ).select('email notifications_enabled notifications_email');
+    res.json({
+      email:                  user.email,
+      notifications_enabled:  user.notifications_enabled ?? false,
+      notifications_email:    user.notifications_email  || '',
+    });
   } catch (err) {
     next(err);
   }
