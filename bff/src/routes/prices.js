@@ -7,7 +7,7 @@ const RawPrice = require('../models/RawPrice');
 router.get('/:ticker', async (req, res, next) => {
   try {
     const ticker = req.params.ticker.toUpperCase();
-    const days   = Math.min(parseInt(req.query.days) || 90, 365);
+    const days   = Math.min(parseInt(req.query.days, 10) || 90, 365);
 
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
@@ -16,7 +16,7 @@ router.get('/:ticker', async (req, res, next) => {
     const rows = await RawPrice
       .find({ ticker, date: { $gte: cutoffStr } })
       .sort({ date: 1 })
-      .select('-_id -__v ticker');
+      .select('-_id -__v');
 
     res.json(rows);
   } catch (err) {
