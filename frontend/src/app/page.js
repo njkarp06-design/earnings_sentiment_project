@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { getFeed } from '@/lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { getFeed, getFeedSince } from '@/lib/api';
 import FeedCard from '@/components/FeedCard';
 import SearchBar from '@/components/SearchBar';
 import SearchOverlay from '@/components/SearchOverlay';
@@ -11,12 +11,32 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [overlayItem, setOverlayItem] = useState(null);
+  const lastFetchRef = useRef(null);
 
   useEffect(() => {
     getFeed()
-      .then(setItems)
+      .then(data => { setItems(data); lastFetchRef.current = new Date().toISOString(); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+
+    const interval = setInterval(() => {
+      const since = lastFetchRef.current;
+      const fetcher = since ? getFeedSince(since) : getFeed();
+      fetcher
+        .then(fresh => {
+          lastFetchRef.current = new Date().toISOString();
+          if (fresh.length > 0) {
+            setItems(prev => {
+              const existingIds = new Set(prev.map(i => i.filing_id));
+              const newItems = fresh.filter(i => !existingIds.has(i.filing_id));
+              return newItems.length > 0 ? [...newItems, ...prev] : prev;
+            });
+          }
+        })
+        .catch(() => {}); // silent on background refresh errors
+    }, 60_000);
+
+    return () => clearInterval(interval);
   }, []);
 
   return (
