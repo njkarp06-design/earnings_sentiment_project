@@ -2,8 +2,6 @@ name: Deploy to AWS
 
 # Triggers: every push to main, or manually from the Actions tab.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 env:
