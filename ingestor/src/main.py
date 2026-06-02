@@ -244,16 +244,15 @@ def main() -> None:
     scheduler = BlockingScheduler(timezone="UTC")
     scheduler.add_job(
         run_ingest_job,
-        trigger="cron",
-        hour=cfg.schedule_hour,
-        minute=0,
+        trigger="interval",
+        hours=cfg.schedule_interval_hours,
         args=[cfg, edgar, producer, store, fmp],
-        id="nightly_ingest",
+        id="periodic_ingest",
         max_instances=1,
         misfire_grace_time=3600,
     )
 
-    logger.info("Scheduler started — next run at %02d:00 UTC daily", cfg.schedule_hour)
+    logger.info("Scheduler started — running every %d hour(s)", cfg.schedule_interval_hours)
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
