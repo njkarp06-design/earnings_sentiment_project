@@ -1,4 +1,5 @@
-const router       = require('express').Router();
+const router        = require('express').Router();
+const mongoose      = require('mongoose');
 const PriceReaction = require('../models/PriceReaction');
 
 // GET /companies/:ticker/history
@@ -79,5 +80,21 @@ function summarise(arr, avg) {
     avg_return_7d: avg(arr, 'return_7d'),
   };
 }
+
+// GET /companies/:ticker
+// Returns basic company info (name, sector, exchange, cik) from the companies
+// collection.  Works for any listed company, even those with no earnings data.
+router.get('/:ticker', async (req, res, next) => {
+  try {
+    const ticker = req.params.ticker.toUpperCase();
+    const db     = mongoose.connection.db;
+    const company = await db.collection('companies').findOne({ ticker });
+    if (!company) return res.status(404).json({ error: `No company found for ${ticker}` });
+    const { _id, ...info } = company;
+    res.json(info);
+  } catch (err) {
+    next(err);
+  }
+});
 
 module.exports = router;
