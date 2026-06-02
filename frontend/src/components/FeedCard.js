@@ -44,6 +44,7 @@ function estimateNextCall(callDateStr) {
 export default function FeedCard({ item, showNextCall = false }) {
   const { watchlist, add, remove, isLoggedIn } = usePortfolio();
   const [saving, setSaving] = useState(false);
+  const [bookmarkError, setBookmarkError] = useState(null);
 
   const saved = watchlist.includes(item.ticker);
   const isPositive = item.return_7d != null ? item.return_7d >= 0 : null;
@@ -51,9 +52,13 @@ export default function FeedCard({ item, showNextCall = false }) {
   const handleBookmark = async (e) => {
     e.preventDefault();
     setSaving(true);
+    setBookmarkError(null);
     try {
       if (saved) await remove(item.ticker);
       else await add(item.ticker);
+    } catch (err) {
+      setBookmarkError(err.message || 'Failed');
+      setTimeout(() => setBookmarkError(null), 3000);
     } finally {
       setSaving(false);
     }
@@ -84,17 +89,22 @@ export default function FeedCard({ item, showNextCall = false }) {
         <div className="flex items-center gap-2 shrink-0 mt-0.5">
           <span className="text-slate-500 text-xs">{fmtDate(item.call_date)}</span>
           {isLoggedIn && (
-            <button
-              onClick={handleBookmark}
-              disabled={saving}
-              aria-label={saved ? 'Remove from portfolio' : 'Add to portfolio'}
-              className={clsx(
-                'transition-colors disabled:opacity-50',
-                saved ? 'text-emerald-400 hover:text-emerald-300' : 'text-slate-500 hover:text-slate-300',
+            <div className="flex flex-col items-end gap-0.5">
+              <button
+                onClick={handleBookmark}
+                disabled={saving}
+                aria-label={saved ? 'Remove from portfolio' : 'Add to portfolio'}
+                className={clsx(
+                  'transition-colors disabled:opacity-50',
+                  saved ? 'text-emerald-400 hover:text-emerald-300' : 'text-slate-500 hover:text-slate-300',
+                )}
+              >
+                <BookmarkIcon filled={saved} />
+              </button>
+              {bookmarkError && (
+                <span className="text-[10px] text-red-400 leading-none">{bookmarkError}</span>
               )}
-            >
-              <BookmarkIcon filled={saved} />
-            </button>
+            </div>
           )}
         </div>
       </div>
