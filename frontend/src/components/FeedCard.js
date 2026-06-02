@@ -35,6 +35,12 @@ function BookmarkIcon({ filled }) {
   );
 }
 
+function isLive(callDateStr) {
+  if (!callDateStr) return false;
+  const diff = Date.now() - new Date(callDateStr + 'T12:00:00').getTime();
+  return diff < 24 * 60 * 60 * 1000;
+}
+
 function estimateNextCall(callDateStr) {
   const d = new Date(callDateStr + 'T12:00:00');
   d.setDate(d.getDate() + 91);
@@ -46,8 +52,9 @@ export default function FeedCard({ item, showNextCall = false }) {
   const [saving, setSaving] = useState(false);
   const [bookmarkError, setBookmarkError] = useState(null);
 
-  const saved = watchlist.includes(item.ticker);
+  const saved      = watchlist.includes(item.ticker);
   const isPositive = item.return_7d != null ? item.return_7d >= 0 : null;
+  const live       = isLive(item.call_date);
 
   const handleBookmark = async (e) => {
     e.preventDefault();
@@ -87,6 +94,12 @@ export default function FeedCard({ item, showNextCall = false }) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0 mt-0.5">
+          {live && (
+            <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Live
+            </span>
+          )}
           <span className="text-slate-500 text-xs">{fmtDate(item.call_date)}</span>
           {isLoggedIn && (
             <div className="flex flex-col items-end gap-0.5">
@@ -118,9 +131,9 @@ export default function FeedCard({ item, showNextCall = false }) {
 
       {/* ── Post-call returns ────────────────────────────────── */}
       <div className="flex gap-6 px-5 py-3 border-t border-slate-700/50">
-        <ReturnBadge value={item.return_1d} label="1-day" />
-        <ReturnBadge value={item.return_3d} label="3-day" />
-        <ReturnBadge value={item.return_7d} label="7-day" />
+        <ReturnBadge value={item.return_1d} label="1-day" pending={item.pending} />
+        <ReturnBadge value={item.return_3d} label="3-day" pending={item.pending} />
+        <ReturnBadge value={item.return_7d} label="7-day" pending={item.pending} />
       </div>
 
       {/* ── CEO confidence + key phrases ─────────────────────── */}

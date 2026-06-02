@@ -70,7 +70,7 @@ A sharp 2-3 sentence analyst take on what this earnings call means for the compa
 
   try {
     const stream = client.messages.stream({
-      model: process.env.SCORING_MODEL || 'claude-sonnet-4-6',
+      model: process.env.INSPECT_MODEL || 'claude-sonnet-4-6',
       max_tokens: 1500,
       messages: [{ role: 'user', content: prompt }],
     });

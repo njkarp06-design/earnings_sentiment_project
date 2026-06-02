@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { getCompanyHistory } from '@/lib/api';
+import { getCompanyHistory, getAccuracy } from '@/lib/api';
 import ScoreBar from '@/components/ScoreBar';
 import ReturnBadge from '@/components/ReturnBadge';
 import ScoreChart from '@/components/ScoreChart';
@@ -18,12 +18,13 @@ function fmtDate(str) {
 export default function CompanyPage({ params }) {
   const ticker = params.ticker.toUpperCase();
   const [history, setHistory] = useState([]);
+  const [accuracy, setAccuracy] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    getCompanyHistory(ticker)
-      .then(setHistory)
+    Promise.all([getCompanyHistory(ticker), getAccuracy(ticker)])
+      .then(([hist, acc]) => { setHistory(hist); setAccuracy(acc); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [ticker]);
@@ -73,10 +74,67 @@ export default function CompanyPage({ params }) {
         </div>
       )}
 
+      {accuracy?.buckets?.length > 0 && (
+        <TrackRecord accuracy={accuracy} />
+      )}
+
       <div className="space-y-4">
         {history.map((item, i) => (
           <CallCard key={item.filing_id ?? i} item={item} />
         ))}
+      </div>
+    </div>
+  );
+}
+
+function fmtReturn(val) {
+  if (val == null) return <span className="text-slate-600">—</span>;
+  const pos = val >= 0;
+  return (
+    <span className={pos ? 'text-green-400' : 'text-red-400'}>
+      {pos ? '+' : ''}{val.toFixed(2)}%
+    </span>
+  );
+}
+
+function TrackRecord({ accuracy }) {
+  const BUCKET_LABELS = { high: 'Score ≥70', mid: 'Score 45–70', low: 'Score <45' };
+  const BUCKET_COLORS = { high: 'text-emerald-400', mid: 'text-amber-400', low: 'text-red-400' };
+
+  return (
+    <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
+          Track Record
+        </h2>
+        <span className="text-[11px] text-slate-600">{accuracy.total} calls with returns</span>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-[10px] text-slate-500 uppercase tracking-wide">
+              <th className="text-left pb-2 font-medium">Score Range</th>
+              <th className="text-center pb-2 font-medium">Calls</th>
+              <th className="text-center pb-2 font-medium">Avg 1d</th>
+              <th className="text-center pb-2 font-medium">Avg 3d</th>
+              <th className="text-center pb-2 font-medium">Avg 7d</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-700/50">
+            {accuracy.buckets.map(b => (
+              <tr key={b.bucket} className="text-sm">
+                <td className={`py-2 font-medium ${BUCKET_COLORS[b.bucket] || 'text-slate-300'}`}>
+                  {BUCKET_LABELS[b.bucket] || b.range}
+                </td>
+                <td className="py-2 text-center text-slate-400 tabular-nums">{b.count}</td>
+                <td className="py-2 text-center tabular-nums">{fmtReturn(b.avg_return_1d)}</td>
+                <td className="py-2 text-center tabular-nums">{fmtReturn(b.avg_return_3d)}</td>
+                <td className="py-2 text-center tabular-nums">{fmtReturn(b.avg_return_7d)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
