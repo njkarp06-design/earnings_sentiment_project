@@ -1,6 +1,12 @@
 """MongoDB helpers for the correlation service."""
 
 
+def get_company_sector(db, ticker: str) -> str | None:
+    """Return the sector for a ticker from the companies collection, or None."""
+    doc = db.companies.find_one({"ticker": ticker.upper()}, {"sector": 1})
+    return doc.get("sector") if doc else None
+
+
 def already_correlated(db, filing_id: str) -> bool:
     return db.price_reactions.find_one({"filing_id": filing_id}) is not None
 
