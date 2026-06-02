@@ -115,7 +115,7 @@ services:
       EDGAR_USER_AGENT: ${EDGAR_USER_AGENT:-EarningsSentimentResearch contact@example.com}
       TICKERS: ${TICKERS:-AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,JPM,JNJ,XOM}
       LOOKBACK_DAYS: ${LOOKBACK_DAYS:-30}
-      SCHEDULE_HOUR: ${SCHEDULE_HOUR:-6}
+      SCHEDULE_INTERVAL_HOURS: ${SCHEDULE_INTERVAL_HOURS:-2}
       FMP_API_KEY: ${FMP_API_KEY:-}
     env_file:
       - path: .env

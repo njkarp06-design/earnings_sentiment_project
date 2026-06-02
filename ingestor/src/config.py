@@ -10,8 +10,8 @@ class Config:
     # SEC requires a meaningful User-Agent: "Company contact@email.com"
     edgar_user_agent: str
     tickers: List[str]
-    lookback_days: int   # how far back to scan for new 8-K filings on startup
-    schedule_hour: int   # UTC hour for the daily cron
+    lookback_days: int            # how far back to scan for new 8-K filings on startup
+    schedule_interval_hours: int  # how often to re-scan (e.g. 2 = every 2 hours)
     # Empty string = FMP disabled; set to enable fallback for EDGAR misses
     fmp_api_key: str = ""
 
@@ -35,6 +35,6 @@ class Config:
             ),
             tickers=[t.strip().upper() for t in tickers_raw.split(",") if t.strip()],
             lookback_days=int(os.getenv("LOOKBACK_DAYS", "30")),
-            schedule_hour=int(os.getenv("SCHEDULE_HOUR", "6")),
+            schedule_interval_hours=int(os.getenv("SCHEDULE_INTERVAL_HOURS", "2")),
             fmp_api_key=os.getenv("FMP_API_KEY", ""),
         )
