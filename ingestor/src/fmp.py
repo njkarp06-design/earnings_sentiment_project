@@ -26,12 +26,17 @@ _FMP_BASE = "https://financialmodelingprep.com/api"
 class FmpClient:
     def __init__(self, api_key: str) -> None:
         self._api_key = api_key
+        # Set to True on first permanent API failure (402/403) so we only log once
+        # and skip all subsequent requests for the rest of the session.
+        self._disabled = False
 
     def list_available(self, ticker: str) -> List[Tuple[int, int]]:
         """
         Return list of (quarter, year) tuples for which FMP has a transcript.
-        Most recent first.
+        Most recent first.  Returns [] immediately if the API is known-disabled.
         """
+        if self._disabled:
+            return []
         url = f"{_FMP_BASE}/v4/earning_call_transcript"
         data = self._get(url, params={"symbol": ticker})
         if data is None:
@@ -69,7 +74,16 @@ class FmpClient:
             resp.raise_for_status()
             return resp.json()
         except requests.HTTPError as exc:
-            logger.warning("FMP request failed [%s]: HTTP %s", url, exc.response.status_code)
+            status = exc.response.status_code
+            if status in (402, 403) and not self._disabled:
+                self._disabled = True
+                logger.warning(
+                    "FMP transcript API returned HTTP %d — disabling for this session. "
+                    "Upgrade your FMP plan at financialmodelingprep.com to re-enable.",
+                    status,
+                )
+            elif status not in (402, 403):
+                logger.warning("FMP request failed [%s]: HTTP %d", url, status)
             return None
         except Exception as exc:
             logger.warning("FMP request failed [%s]: %s", url, type(exc).__name__)

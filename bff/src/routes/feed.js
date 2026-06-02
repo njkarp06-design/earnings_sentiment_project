@@ -16,7 +16,7 @@ router.get('/', async (req, res, next) => {
     const items = await PriceReaction
       .find(query)
       .sort({ correlated_at: -1 })
-      .limit(24)
+      .limit(50)
       .select('-_id filing_id ticker company_name sector call_date confidence_score trend key_phrases return_1d return_3d return_7d call_date_close price_series correlated_at');
 
     const now = Date.now();

@@ -22,7 +22,20 @@ def fetch_price_window(ticker: str, call_date: str) -> Optional[Dict[str, Dict]]
     end = (call_dt + timedelta(days=_DAYS_AFTER)).strftime("%Y-%m-%d")
 
     try:
-        hist = yf.Ticker(ticker).history(start=start, end=end, auto_adjust=True)
+        import requests as _req
+        session = _req.Session()
+        session.headers.update({
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+        })
+        hist = yf.Ticker(ticker, session=session).history(
+            start=start, end=end, auto_adjust=True
+        )
     except Exception as exc:
         logger.warning("yfinance error for %s: %s", ticker, exc)
         return None
