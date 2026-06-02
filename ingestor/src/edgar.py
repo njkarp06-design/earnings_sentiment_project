@@ -45,6 +45,26 @@ _TRANSCRIPT_SIGNALS = [
     "good evening, everyone",
 ]
 
+# Earnings press releases don't have "operator" / "q&a" but do have dense
+# financial-results language.  Require ≥ this many signals to accept them.
+_EARNINGS_PR_THRESHOLD = 4
+
+_EARNINGS_PR_SIGNALS = [
+    "revenue",
+    "earnings per share",
+    "net income",
+    "gross margin",
+    "guidance",
+    "outlook",
+    "financial results",
+    "quarterly results",
+    "first quarter",
+    "second quarter",
+    "third quarter",
+    "fourth quarter",
+    "fiscal quarter",
+]
+
 
 class EdgarClient:
     def __init__(self, user_agent: str) -> None:
@@ -89,24 +109,18 @@ class EdgarClient:
 
     def fetch_transcript(self, cik: str, accession_number: str) -> Optional[Dict]:
         """
-        Try to extract an earnings-call transcript from the given 8-K filing.
+        Try to extract earnings content from the given 8-K filing.
+        Accepts both call transcripts and earnings press releases.
         Returns {'text': str, 'accession_number': str} or None.
         """
         cik_int = int(cik)
         acc_nodash = accession_number.replace("-", "")
 
-        # 1. Get the filing's document index
-        idx_url = (
-            f"{_EDGAR_BASE}/Archives/edgar/data/{cik_int}"
-            f"/{acc_nodash}/{accession_number}-index.json"
-        )
-        try:
-            idx_data = self._get(idx_url).json()
-        except Exception as exc:
-            logger.debug("No index JSON for %s: %s", accession_number, exc)
+        # 1. Get the filing's document index (JSON first, HTML fallback)
+        items = self._get_filing_items(cik_int, acc_nodash, accession_number)
+        if not items:
+            logger.debug("No filing index for %s", accession_number)
             return None
-
-        items = idx_data.get("directory", {}).get("item", [])
 
         # 2. Collect candidate exhibit files (HTML/text only)
         candidates = self._exhibit_candidates(items)
@@ -165,6 +179,81 @@ class EdgarClient:
 
         return candidates
 
+    def _get_filing_items(
+        self, cik_int: int, acc_nodash: str, accession_number: str
+    ) -> List[Dict]:
+        """
+        Return the document list for a filing.
+        Tries the JSON index first; falls back to the HTML index which EDGAR
+        always provides even when the JSON variant is absent.
+        """
+        base = f"{_EDGAR_BASE}/Archives/edgar/data/{cik_int}/{acc_nodash}"
+
+        # JSON index (available for most recent filings)
+        try:
+            data = self._get(f"{base}/{accession_number}-index.json").json()
+            items = data.get("directory", {}).get("item", [])
+            if items:
+                return items
+        except Exception:
+            pass
+
+        # HTML index fallback (.htm and .html are both in use on EDGAR)
+        for ext in ("-index.htm", "-index.html"):
+            try:
+                resp = self._get(f"{base}/{accession_number}{ext}")
+                items = self._parse_html_index(resp.content)
+                if items:
+                    return items
+            except Exception:
+                continue
+
+        return []
+
+    def _parse_html_index(self, content: bytes) -> List[Dict]:
+        """
+        Parse an EDGAR HTML filing index page into a list of
+        {'name': filename, 'type': exhibit_type} dicts.
+
+        EDGAR index pages contain one or more tables with headers
+        Seq / Description / Document / Type / Size.  We parse every
+        such table so both primary documents and all exhibits are
+        captured; type-filtering happens downstream in _exhibit_candidates.
+        """
+        soup = BeautifulSoup(content, "lxml")
+        items: List[Dict] = []
+
+        for table in soup.find_all("table"):
+            rows = table.find_all("tr")
+            if len(rows) < 2:
+                continue
+            header_cells = rows[0].find_all(["th", "td"])
+            headers = [c.get_text(strip=True).lower() for c in header_cells]
+            if "document" not in headers or "type" not in headers:
+                continue
+
+            doc_col  = headers.index("document")
+            type_col = headers.index("type")
+
+            for row in rows[1:]:
+                cells = row.find_all(["td", "th"])
+                if len(cells) <= max(doc_col, type_col):
+                    continue
+                # Use href rather than cell text — some cells append "iXBRL" etc.
+                a_tag = cells[doc_col].find("a")
+                if a_tag:
+                    name = (a_tag.get("href") or "").split("/")[-1].strip()
+                    if not name:
+                        name = a_tag.get_text(strip=True)
+                else:
+                    name = cells[doc_col].get_text(strip=True)
+
+                doc_type = cells[type_col].get_text(strip=True)
+                if name:
+                    items.append({"name": name, "type": doc_type})
+
+        return items
+
     def _fetch_and_clean(self, url: str) -> str:
         resp = self._get(url)
         content_type = resp.headers.get("Content-Type", "")
@@ -183,12 +272,21 @@ class EdgarClient:
 
     def _is_transcript(self, text: str) -> bool:
         """
-        Heuristic: require at least _TRANSCRIPT_THRESHOLD signal phrases
-        and a minimum length (real transcripts are long).
+        Accept the document if it looks like either:
+          (a) an earnings call transcript – ≥ _TRANSCRIPT_THRESHOLD of the
+              call-specific signal phrases (operator, q&a, …), or
+          (b) an earnings press release – ≥ _EARNINGS_PR_THRESHOLD of the
+              financial-results signal phrases (revenue, EPS, guidance, …).
+        Both paths require a minimum document length to filter stubs.
         """
+        if len(text) <= 3_000:
+            return False
         text_lower = text.lower()
-        hits = sum(1 for sig in _TRANSCRIPT_SIGNALS if sig in text_lower)
-        return hits >= _TRANSCRIPT_THRESHOLD and len(text) > 3_000
+        transcript_hits = sum(1 for s in _TRANSCRIPT_SIGNALS if s in text_lower)
+        if transcript_hits >= _TRANSCRIPT_THRESHOLD:
+            return True
+        pr_hits = sum(1 for s in _EARNINGS_PR_SIGNALS if s in text_lower)
+        return pr_hits >= _EARNINGS_PR_THRESHOLD
 
     def _get(self, url: str) -> requests.Response:
         time.sleep(_REQUEST_DELAY)
