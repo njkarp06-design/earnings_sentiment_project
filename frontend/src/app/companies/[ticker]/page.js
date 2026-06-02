@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { getCompanyHistory, getAccuracy } from '@/lib/api';
+import { getCompanyHistory, getAccuracy, getCompanyInfo } from '@/lib/api';
 import ScoreBar from '@/components/ScoreBar';
 import ReturnBadge from '@/components/ReturnBadge';
 import ScoreChart from '@/components/ScoreChart';
@@ -19,12 +19,21 @@ export default function CompanyPage({ params }) {
   const ticker = params.ticker.toUpperCase();
   const [history, setHistory] = useState([]);
   const [accuracy, setAccuracy] = useState(null);
+  const [companyInfo, setCompanyInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    Promise.all([getCompanyHistory(ticker), getAccuracy(ticker)])
-      .then(([hist, acc]) => { setHistory(hist); setAccuracy(acc); })
+    Promise.all([
+      getCompanyHistory(ticker),
+      getAccuracy(ticker),
+      getCompanyInfo(ticker).catch(() => null),
+    ])
+      .then(([hist, acc, info]) => {
+        setHistory(hist);
+        setAccuracy(acc);
+        setCompanyInfo(info);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [ticker]);
@@ -42,9 +51,30 @@ export default function CompanyPage({ params }) {
   }
 
   if (history.length === 0) {
+    const displayName = companyInfo?.name || ticker;
     return (
-      <div className="text-center py-20">
-        <p className="text-slate-400">No data found for <span className="text-white">{ticker}</span></p>
+      <div className="py-20 max-w-md mx-auto text-center">
+        <h1 className="text-2xl font-bold text-slate-100 mb-1">{ticker}</h1>
+        {companyInfo?.name && (
+          <p className="text-slate-400 text-sm mb-6">{companyInfo.name}</p>
+        )}
+        {companyInfo?.sector && (
+          <span className="inline-block mb-6 text-xs bg-slate-800 border border-slate-700 text-slate-400 px-3 py-1 rounded-full">
+            {companyInfo.sector}
+          </span>
+        )}
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+          <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center mx-auto mb-3">
+            <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+            </svg>
+          </div>
+          <p className="text-slate-200 font-medium mb-1">No earnings data yet</p>
+          <p className="text-slate-500 text-sm">
+            {displayName} is tracked in our universe. Earnings filings will appear here
+            automatically once they are detected and scored.
+          </p>
+        </div>
       </div>
     );
   }
