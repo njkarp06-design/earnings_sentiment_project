@@ -186,10 +186,10 @@ export default function FeedCard({ item, showNextCall = false }) {
           )}
         </div>
 
-        {/* ── Deep analysis footer hint ────────────────────────── */}
+        {/* ── Inspect footer hint ──────────────────────────────── */}
         <div className="flex items-center gap-1.5 px-5 py-2.5 border-t border-slate-700/40 text-slate-600 hover:text-slate-400 transition-colors">
           <SparkleIcon />
-          <span className="text-[10px] uppercase tracking-wide font-medium">Deep Analysis</span>
+          <span className="text-[10px] uppercase tracking-wide font-medium">Inspect</span>
         </div>
       </div>
 
