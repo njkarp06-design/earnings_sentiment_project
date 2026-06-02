@@ -42,7 +42,6 @@ def compute_post_call_returns(ticker: str, call_date: str, fetch_days: int = 12)
 
     try:
         import requests as _requests
-        import time as _time
         session = _requests.Session()
         session.headers.update({
             "User-Agent": (
@@ -70,7 +69,7 @@ def compute_post_call_returns(ticker: str, call_date: str, fetch_days: int = 12)
             except Exception as exc:
                 if attempt == 0 and "Too Many Requests" in str(exc):
                     logger.info("yfinance rate-limited for %s — retrying in 90s", ticker)
-                    _time.sleep(90)
+                    time.sleep(90)
                     continue
                 raise
     except Exception as exc:
