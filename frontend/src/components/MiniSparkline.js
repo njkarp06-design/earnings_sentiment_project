@@ -66,7 +66,7 @@ export default function MiniSparkline({ data, positive, height = 64 }) {
           strokeWidth={1.5}
           fill={`url(#${gradientId})`}
           dot={false}
-          activeDot={{ r: 3, fill: color, stroke: 'transparent' }}
+          activeDot={{ r: 3, fill: color, strokeWidth: 0 }}
           connectNulls={false}
           isAnimationActive={false}
         />
