@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getToken } from '@/lib/auth';
+import { getToken } from '@/lib/auth'; // still used in redirect guard
 import { getPortfolioItems, getSuggestions, getMe, updatePreferences } from '@/lib/api';
 import FeedCard from '@/components/FeedCard';
 import SuggestionCard from '@/components/SuggestionCard';
@@ -17,7 +17,7 @@ function isRecent(callDate) {
 
 export default function PortfolioPage() {
   const router = useRouter();
-  const { watchlist } = usePortfolio();
+  const { watchlist, isLoggedIn } = usePortfolio();
   const [items, setItems]               = useState([]);
   const [suggestions, setSuggestions]   = useState([]);
   const [loading, setLoading]           = useState(true);
@@ -28,32 +28,34 @@ export default function PortfolioPage() {
   const [notifSaving, setNotifSaving]   = useState(false);
   const [notifError, setNotifError]     = useState(null);
 
+  // Redirect to login whenever isLoggedIn goes false — catches both "no token"
+  // on mount AND the case where PortfolioContext clears an expired token later.
   useEffect(() => {
-    if (!getToken()) router.push('/login');
-  }, [router]);
+    if (!isLoggedIn && !getToken()) router.push('/login');
+  }, [isLoggedIn, router]);
 
   useEffect(() => {
-    if (!getToken()) return;
+    if (!isLoggedIn) return;
     setLoading(true);
     getPortfolioItems()
       .then(setItems)
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [watchlist.length]);
+  }, [isLoggedIn, watchlist.length]);
 
   useEffect(() => {
-    if (!getToken()) return;
+    if (!isLoggedIn) return;
     getSuggestions().then(setSuggestions).catch(() => setSuggestions([]));
-  }, [watchlist.length]);
+  }, [isLoggedIn, watchlist.length]);
 
   useEffect(() => {
-    if (!getToken()) return;
+    if (!isLoggedIn) return;
     getMe()
       .then(me => setNotifPrefs({ enabled: me.notifications_enabled, email: me.notifications_email || me.email }))
-      .catch(() => {});
-  }, []);
+      .catch(() => router.push('/login')); // getMe failing = invalid session — send to login
+  }, [isLoggedIn, router]);
 
-  if (!getToken()) return null;
+  if (!isLoggedIn) return null;
 
   const handleEnableNotifications = async () => {
     setNotifSaving(true);

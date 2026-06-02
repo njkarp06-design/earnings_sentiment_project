@@ -1,7 +1,7 @@
 'use client';
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { getToken } from '@/lib/auth';
+import { getToken, clearToken } from '@/lib/auth';
 import { getPortfolioItems, addToPortfolio, removeFromPortfolio } from '@/lib/api';
 
 const PortfolioContext = createContext({
@@ -29,6 +29,9 @@ export function PortfolioProvider({ children }) {
       setWatchlist(items.map((i) => i.ticker));
     } catch {
       setWatchlist([]);
+      // apiFetch clears the token on 401 — re-evaluate isLoggedIn so the UI
+      // immediately shows as logged-out if the session expired.
+      setIsLoggedIn(!!getToken());
     } finally {
       setLoading(false);
     }

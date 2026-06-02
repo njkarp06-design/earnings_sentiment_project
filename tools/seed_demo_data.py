@@ -1,12 +1,13 @@
 """
-Seed script: inserts demo earnings-call records for 24 well-known companies.
+Seed script: inserts demo earnings-call records for 30 well-known companies.
 
 Each company gets:
-  - 1 "recent" call  (Q4 2024 / Q1 FY2025 earnings, reported Jan-Feb 2025)
-  - 1 "historical" call (Q3 2024 / Q2 FY2025 earnings, reported Oct-Nov 2024)
+  - 1 "recent" call  (Q4 2024 / Q1 FY2025 earnings, reported Nov 2024-Feb 2025)
+  - 1 "historical" call (Q3 2024 / Q2 FY2025 earnings, reported Aug-Nov 2024)
 
-The 24 recent calls fill the dashboard feed (limit=24, sorted by correlated_at DESC).
+The 30 recent calls fill the dashboard feed (sorted by correlated_at DESC).
 The historical calls appear only in per-company history pages.
+Sectors: Technology, Finance, Consumer, Media, Healthcare, Energy, Industrials.
 
 Run:
     python tools/seed_demo_data.py [--mongo mongodb://localhost:27017]
@@ -109,6 +110,12 @@ COMPANIES = {
     "PFE":   {"ticker": "PFE",   "name": "Pfizer Inc.",            "sector": "Healthcare"},
     "XOM":   {"ticker": "XOM",   "name": "Exxon Mobil Corporation","sector": "Energy"},
     "CVX":   {"ticker": "CVX",   "name": "Chevron Corporation",    "sector": "Energy"},
+    "INTC":  {"ticker": "INTC",  "name": "Intel Corporation",       "sector": "Technology"},
+    "CRM":   {"ticker": "CRM",   "name": "Salesforce Inc.",          "sector": "Technology"},
+    "MA":    {"ticker": "MA",    "name": "Mastercard Inc.",          "sector": "Finance"},
+    "COST":  {"ticker": "COST",  "name": "Costco Wholesale Corp.",   "sector": "Consumer"},
+    "ABBV":  {"ticker": "ABBV",  "name": "AbbVie Inc.",              "sector": "Healthcare"},
+    "CAT":   {"ticker": "CAT",   "name": "Caterpillar Inc.",         "sector": "Industrials"},
 }
 
 # ── Earnings records ──────────────────────────────────────────────────────────
@@ -358,6 +365,77 @@ RECORDS = [
            ["Tengizchevroil first oil milestone achieved", "buyback programme maintained at 17 billion annual pace",
             "downstream margins compressing with crack spreads"],
            148.77, 0.21, -0.33, 0.65, "002", trend=None),
+
+    # ── Technology (extended) ─────────────────────────────────────────────────
+    # INTC  Q4 2024 — Jan 23 2025 — recent: score vs prev → down
+    filing(COMPANIES["INTC"], "2025-01-23", 52,
+           ["18A process node secured first external customer commitments", "headcount reduction of 15 percent now complete",
+            "foundry operating losses narrowing but profitability timeline extended"],
+           19.87, -8.22, -9.45, -7.83, "001", trend="down"),
+    # INTC  Q3 2024 — Oct 24 2024 — historical
+    filing(COMPANIES["INTC"], "2024-10-24", 58,
+           ["restructuring plan targets 10 billion in annualised savings", "PC market showing early signs of recovery",
+            "data centre share losses continuing versus competition"],
+           22.45, -3.44, -2.17, -1.33, "002", trend=None),
+
+    # CRM   Q3 FY2025 — Nov 20 2024 — recent: strong AI catalyst → up
+    filing(COMPANIES["CRM"], "2024-11-20", 88,
+           ["Agentforce closed over 1,000 paid deals in first two weeks post-launch", "data cloud growing 120 percent year-over-year",
+            "operating cash flow margin expanded to 33 percent"],
+           318.67, 8.72, 11.45, 14.33, "001", trend="up"),
+    # CRM   Q2 FY2025 — Aug 28 2024 — historical
+    filing(COMPANIES["CRM"], "2024-08-28", 82,
+           ["Einstein AI adoption increasing across enterprise installed base", "current remaining performance obligations grew 15 percent",
+            "professional services bookings recovering after prior-quarter softness"],
+           267.43, 3.44, 2.88, 4.12, "002", trend=None),
+
+    # ── Finance (extended) ────────────────────────────────────────────────────
+    # MA    Q4 2024 — Jan 30 2025 — recent: solid beat → neutral
+    filing(COMPANIES["MA"], "2025-01-30", 87,
+           ["gross dollar volume grew 12 percent on a local currency basis", "services revenue up 19 percent year-over-year",
+            "net revenue reached 7.5 billion for the quarter"],
+           542.38, 1.44, 2.87, 3.92, "001", trend="neutral"),
+    # MA    Q3 2024 — Oct 31 2024 — historical
+    filing(COMPANIES["MA"], "2024-10-31", 85,
+           ["cross-border volume growth accelerating as global travel normalises", "buy now pay later integration expanding issuer base",
+            "cybersecurity and identity solutions revenue up 24 percent"],
+           506.82, 0.88, 1.55, 2.34, "002", trend=None),
+
+    # ── Consumer (extended) ───────────────────────────────────────────────────
+    # COST  Q1 FY2025 — Dec 12 2024 — recent: strong comps → neutral
+    filing(COMPANIES["COST"], "2024-12-12", 89,
+           ["membership fee revenue growing 7.6 percent with renewal rates at record 93 percent", "food and sundries comparable sales up 7 percent",
+            "e-commerce penetration accelerating across all merchandise categories"],
+           987.34, 1.88, 2.44, 3.78, "001", trend="neutral"),
+    # COST  Q4 FY2024 — Sep 26 2024 — historical
+    filing(COMPANIES["COST"], "2024-09-26", 86,
+           ["executive membership renewal rate surpassed 73 percent globally", "gasoline and ancillary services driving incremental traffic",
+            "new warehouse expansion programme tracking ahead of schedule"],
+           878.54, 1.22, 2.11, 3.45, "002", trend=None),
+
+    # ── Healthcare (extended) ─────────────────────────────────────────────────
+    # ABBV  Q4 2024 — Jan 31 2025 — recent: Humira offset → neutral
+    filing(COMPANIES["ABBV"], "2025-01-31", 81,
+           ["Skyrizi and Rinvoq combined revenue surpassed Humira peak year for the first time", "neuroscience pipeline advancing with three Phase 3 programme starts",
+            "2025 adjusted EPS guidance raised above street consensus"],
+           182.45, 1.22, 2.14, 3.44, "001", trend="neutral"),
+    # ABBV  Q3 2024 — Oct 30 2024 — historical
+    filing(COMPANIES["ABBV"], "2024-10-30", 78,
+           ["Humira biosimilar erosion tracking within full-year guidance range", "Venclexta gaining share in acute myeloid leukaemia",
+            "aesthetics division recovering from channel inventory destocking"],
+           176.83, 0.44, 1.22, 2.05, "002", trend=None),
+
+    # ── Industrials ───────────────────────────────────────────────────────────
+    # CAT   Q4 2024 — Jan 28 2025 — recent: dealer inventory headwind → down
+    filing(COMPANIES["CAT"], "2025-01-28", 78,
+           ["services revenue growing toward record 28 billion annualised target", "dealer inventory normalisation creating near-term volume headwind",
+            "energy and transportation segment outperforming construction machinery"],
+           372.44, -2.87, -1.55, -0.88, "001", trend="down"),
+    # CAT   Q3 2024 — Oct 28 2024 — historical
+    filing(COMPANIES["CAT"], "2024-10-28", 76,
+           ["sales and revenues declined 4 percent versus prior year as expected", "price realisation turning negative for first time in three years",
+            "order backlog remains robust at 28 billion dollars"],
+           385.77, -0.88, 0.44, 1.22, "002", trend=None),
 ]
 
 
