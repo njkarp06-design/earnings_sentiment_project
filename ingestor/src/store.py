@@ -1,6 +1,6 @@
 import logging
-from typing import Optional, Set
-from pymongo import MongoClient
+from typing import Dict, Optional, Set
+from pymongo import MongoClient, UpdateOne
 from pymongo.errors import DuplicateKeyError
 
 logger = logging.getLogger(__name__)
@@ -55,6 +55,48 @@ class ProcessedStore:
             )
         except Exception as exc:
             logger.warning("Failed to upsert company %s: %s", ticker, exc)
+
+    def needs_company_seed(self) -> bool:
+        """True when the companies collection has fewer than 1 000 entries.
+
+        Used to decide whether to run the full universe seed on startup —
+        avoids re-downloading company_tickers.json on every ingestor boot.
+        """
+        try:
+            db = self._client.get_default_database()
+            return db.companies.count_documents({}) < 1_000
+        except Exception:
+            return True
+
+    def seed_companies(self, companies: Dict[str, Dict]) -> int:
+        """Bulk-upsert all companies from the EDGAR CIK map.
+
+        Sets ticker, name, and cik.  Uses $setOnInsert for name so that
+        the sector / exchange fields set by later ingest runs are never
+        overwritten by the generic seed data.
+
+        Returns the number of documents inserted or modified.
+        """
+        if not companies:
+            return 0
+        try:
+            db = self._client.get_default_database()
+            ops = [
+                UpdateOne(
+                    {"ticker": ticker},
+                    {
+                        "$set": {"ticker": ticker, "cik": info["cik"]},
+                        "$setOnInsert": {"name": info["name"]},
+                    },
+                    upsert=True,
+                )
+                for ticker, info in companies.items()
+            ]
+            result = db.companies.bulk_write(ops, ordered=False)
+            return result.upserted_count + result.modified_count
+        except Exception as exc:
+            logger.warning("Company universe seed failed: %s", exc)
+            return 0
 
     def close(self) -> None:
         self._client.close()
