@@ -10,11 +10,15 @@ if (!process.env.JWT_SECRET) {
 if (process.env.JWT_SECRET === 'changeme') {
   console.warn('WARNING: JWT_SECRET is "changeme" — use a strong secret in production');
 }
+if (!process.env.ANTHROPIC_API_KEY) {
+  console.warn('WARNING: ANTHROPIC_API_KEY is not set — the /inspect endpoint will fail at runtime');
+}
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
 // ── Routes ──────────────────────────────────────────────────────────────────

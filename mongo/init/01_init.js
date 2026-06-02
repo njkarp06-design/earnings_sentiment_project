@@ -45,6 +45,7 @@ db.transcripts.createIndex({ filing_id: 1 }, { unique: true });
 db.scores.createIndex({ filing_id: 1 }, { unique: true });
 db.price_reactions.createIndex({ filing_id: 1 }, { unique: true, sparse: true });
 db.price_reactions.createIndex({ ticker: 1, call_date: -1 });
+db.price_reactions.createIndex({ correlated_at: -1 });  // feed endpoint sort
 db.raw_prices.createIndex({ ticker: 1, date: 1 }, { unique: true });
 db.users.createIndex({ email: 1 }, { unique: true });
 

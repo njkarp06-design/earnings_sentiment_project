@@ -8,6 +8,7 @@ const PortfolioContext = createContext({
   watchlist: [],
   add: async () => {},
   remove: async () => {},
+  refresh: async () => {},
   isLoggedIn: false,
   loading: false,
 });

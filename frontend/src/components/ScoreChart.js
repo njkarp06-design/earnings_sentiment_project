@@ -64,7 +64,7 @@ export default function ScoreChart({ data }) {
           dataKey="score"
           stroke="#3b82f6"
           strokeWidth={2}
-          dot={{ fill: '#3b82f6', r: 4 }}
+          dot={<circle r={4} fill="#3b82f6" />}
           activeDot={{ r: 6 }}
         />
         <Line
@@ -73,7 +73,7 @@ export default function ScoreChart({ data }) {
           dataKey="return_7d"
           stroke="#22c55e"
           strokeWidth={2}
-          dot={{ fill: '#22c55e', r: 4 }}
+          dot={<circle r={4} fill="#22c55e" />}
           activeDot={{ r: 6 }}
           connectNulls={false}
         />
