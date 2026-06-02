@@ -23,7 +23,9 @@ function fmtDate(str) {
   });
 }
 
-function accentBorder(score) {
+function accentBorder(item) {
+  if (!item.has_data) return 'border-t-slate-600';
+  const score = item.confidence_score;
   if (score >= 70) return 'border-t-emerald-500/70';
   if (score >= 45) return 'border-t-amber-500/70';
   return 'border-t-red-500/70';
@@ -51,7 +53,8 @@ export default function SearchOverlay({ item, onClose }) {
   const [portfolioError, setPortfolioError] = useState(null);
   const [inspecting, setInspecting] = useState(false);
 
-  const saved = watchlist.includes(item.ticker);
+  const saved      = watchlist.includes(item.ticker);
+  const hasData    = !!item.has_data;
   const isPositive = item.return_7d != null ? item.return_7d >= 0 : null;
 
   // ESC key to close — skip when InspectModal is layered on top
@@ -92,7 +95,7 @@ export default function SearchOverlay({ item, onClose }) {
       <div
         className={clsx(
           'w-full max-w-lg bg-slate-800 border border-slate-700 border-t-[3px] rounded-2xl overflow-hidden shadow-2xl',
-          accentBorder(item.confidence_score),
+          accentBorder(item),
         )}
         onClick={(e) => e.stopPropagation()}
       >
@@ -121,47 +124,75 @@ export default function SearchOverlay({ item, onClose }) {
           </button>
         </div>
 
-        {/* ── Sparkline ──────────────────────────────────────────── */}
-        {item.price_series?.length > 0 && (
-          <div className="px-3 pb-2">
-            <MiniSparkline data={item.price_series} positive={isPositive} height={100} />
+        {hasData ? (
+          <>
+            {/* ── Sparkline ────────────────────────────────────────── */}
+            {item.price_series?.length > 0 && (
+              <div className="px-3 pb-2">
+                <MiniSparkline data={item.price_series} positive={isPositive} height={100} />
+              </div>
+            )}
+
+            {/* ── Returns ──────────────────────────────────────────── */}
+            <div className="flex gap-8 px-6 py-4 border-t border-slate-700/50">
+              <ReturnBadge value={item.return_1d} label="1-day" />
+              <ReturnBadge value={item.return_3d} label="3-day" />
+              <ReturnBadge value={item.return_7d} label="7-day" />
+              {item.call_date_close != null && (
+                <div className="text-center ml-auto">
+                  <div className="text-xs font-semibold text-slate-300 tabular-nums">
+                    ${Number(item.call_date_close).toFixed(2)}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">Close</div>
+                </div>
+              )}
+            </div>
+
+            {/* ── CEO Confidence + Key Phrases ─────────────────────── */}
+            <div className="flex flex-col gap-3 px-6 py-4 border-t border-slate-700/50">
+              <div>
+                <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-1.5">CEO Confidence</div>
+                <ScoreBar score={item.confidence_score} />
+              </div>
+              {item.key_phrases?.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {item.key_phrases.map((phrase, i) => (
+                    <span
+                      key={i}
+                      className="text-[11px] bg-slate-700/80 text-slate-300 px-2.5 py-0.5 rounded-full"
+                    >
+                      {phrase}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          /* ── No earnings data yet ──────────────────────────────── */
+          <div className="px-6 py-6 border-t border-slate-700/50">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-200">No earnings data yet</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {item.ticker} is in our universe and will appear in the feed automatically
+                  once an earnings filing is detected and scored.
+                  {isLoggedIn && ' Save it to your portfolio to get notified first.'}
+                </p>
+                {item.sector && (
+                  <span className="inline-block mt-2 text-[11px] bg-slate-700 text-slate-400 px-2.5 py-0.5 rounded-full">
+                    {item.sector}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         )}
-
-        {/* ── Returns ────────────────────────────────────────────── */}
-        <div className="flex gap-8 px-6 py-4 border-t border-slate-700/50">
-          <ReturnBadge value={item.return_1d} label="1-day" />
-          <ReturnBadge value={item.return_3d} label="3-day" />
-          <ReturnBadge value={item.return_7d} label="7-day" />
-          {item.call_date_close != null && (
-            <div className="text-center ml-auto">
-              <div className="text-xs font-semibold text-slate-300 tabular-nums">
-                ${Number(item.call_date_close).toFixed(2)}
-              </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Close</div>
-            </div>
-          )}
-        </div>
-
-        {/* ── CEO Confidence + Key Phrases ───────────────────────── */}
-        <div className="flex flex-col gap-3 px-6 py-4 border-t border-slate-700/50">
-          <div>
-            <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-1.5">CEO Confidence</div>
-            <ScoreBar score={item.confidence_score} />
-          </div>
-          {item.key_phrases?.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {item.key_phrases.map((phrase, i) => (
-                <span
-                  key={i}
-                  className="text-[11px] bg-slate-700/80 text-slate-300 px-2.5 py-0.5 rounded-full"
-                >
-                  {phrase}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
 
         {/* ── Footer CTAs ─────────────────────────────────────────── */}
         <div className="flex flex-col gap-2 px-6 py-4 border-t border-slate-700/50 bg-slate-800/60">
@@ -171,17 +202,19 @@ export default function SearchOverlay({ item, onClose }) {
               onClick={onClose}
               className="text-sm text-blue-400 hover:text-blue-300 transition-colors font-medium"
             >
-              View full history →
+              {hasData ? 'View full history →' : 'View company page →'}
             </Link>
 
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setInspecting(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
-              >
-                <SparkleIcon />
-                Deep Analysis
-              </button>
+              {hasData && (
+                <button
+                  onClick={() => setInspecting(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+                >
+                  <SparkleIcon />
+                  Deep Analysis
+                </button>
+              )}
 
               {isLoggedIn ? (
                 <button
@@ -216,7 +249,7 @@ export default function SearchOverlay({ item, onClose }) {
       </div>
     </div>
 
-    {inspecting && (
+    {hasData && inspecting && (
       <InspectModal item={item} onClose={() => setInspecting(false)} />
     )}
     </>
