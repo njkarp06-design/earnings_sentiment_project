@@ -1,6 +1,6 @@
 const router = require('express').Router();
 
-const FMP_BASE    = 'https://financialmodelingprep.com/api/v3';
+const FMP_BASE    = 'https://financialmodelingprep.com/stable';
 const FMP_API_KEY = process.env.FMP_API_KEY || '';
 const TRACKED     = (process.env.TICKERS || '')
   .split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
@@ -21,7 +21,7 @@ router.get('/', async (req, res, next) => {
     const from = req.query.from || today.toISOString().slice(0, 10);
     const to   = req.query.to   || future.toISOString().slice(0, 10);
 
-    const url = `${FMP_BASE}/earning_calendar?from=${from}&to=${to}&apikey=${FMP_API_KEY}`;
+    const url = `${FMP_BASE}/earnings-calendar?from=${from}&to=${to}&apikey=${FMP_API_KEY}`;
     const fmpRes = await fetch(url);
 
     if (!fmpRes.ok) {
