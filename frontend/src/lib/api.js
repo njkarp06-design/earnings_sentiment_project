@@ -22,6 +22,7 @@ export const getFeed = () => apiFetch('/feed');
 export const getFeedSince = (since) => apiFetch(`/feed?since=${encodeURIComponent(since)}`);
 export const getLeaderboard = () => apiFetch('/leaderboard');
 export const getCompanyHistory = (ticker) => apiFetch(`/companies/${ticker}/history`);
+export const getPrices = (ticker, days = 90) => apiFetch(`/prices/${ticker}?days=${days}`);
 export const getAccuracy = (ticker) => apiFetch(`/companies/${ticker}/accuracy`);
 export const getCalendar = (from, to) => {
   const params = new URLSearchParams();
