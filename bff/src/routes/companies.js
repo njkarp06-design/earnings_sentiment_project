@@ -1,6 +1,10 @@
 const router        = require('express').Router();
 const mongoose      = require('mongoose');
 const PriceReaction = require('../models/PriceReaction');
+const requireAuth   = require('../middleware/auth');
+
+const INGESTOR_URL = process.env.INGESTOR_URL || 'http://ingestor:8001';
+const TICKER_RE    = /^[A-Z]{1,10}$/;
 
 // GET /companies/:ticker/history
 // All scored+correlated calls for a ticker, newest first.
@@ -80,6 +84,34 @@ function summarise(arr, avg) {
     avg_return_7d: avg(arr, 'return_7d'),
   };
 }
+
+// POST /companies/:ticker/ingest
+// Auth-protected. Triggers an on-demand EDGAR + FMP scan for a single ticker
+// via the ingestor's HTTP API. Returns immediately; the caller should poll
+// GET /companies/:ticker/latest every few seconds until data appears.
+router.post('/:ticker/ingest', requireAuth, async (req, res, next) => {
+  try {
+    const ticker = req.params.ticker.toUpperCase();
+    if (!TICKER_RE.test(ticker)) {
+      return res.status(400).json({ error: 'Invalid ticker — must be 1–10 uppercase letters' });
+    }
+    const response = await fetch(`${INGESTOR_URL}/trigger/${ticker}`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      return res.status(502).json({ error: 'Ingestor trigger failed' });
+    }
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    // Ingestor not reachable (e.g. running outside Docker) — fail gracefully.
+    if (err.name === 'TimeoutError' || err.code === 'ECONNREFUSED') {
+      return res.status(503).json({ error: 'Ingestor unavailable' });
+    }
+    next(err);
+  }
+});
 
 // GET /companies/:ticker
 // Returns basic company info (name, sector, exchange, cik) from the companies

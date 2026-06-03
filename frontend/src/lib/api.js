@@ -85,6 +85,17 @@ export const getSuggestions = () =>
 
 export const getPulse = () => apiFetch('/pulse');
 
+export const getCompanyLatest = (ticker) =>
+  apiFetch(`/companies/${ticker}/latest`);
+
+// Trigger an on-demand EDGAR scan for a ticker that has no data yet.
+// Requires auth. Returns immediately — caller should poll getCompanyLatest.
+export const triggerIngest = (ticker) =>
+  apiFetch(`/companies/${ticker}/ingest`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+
 // ── Inspect — SSE streaming (require JWT) ─────────────────────────────────────
 // Calls onText(chunk) progressively, then onDone() when the stream ends.
 export async function inspectCall(data, onText, onDone, onError) {

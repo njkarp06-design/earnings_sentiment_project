@@ -11,6 +11,9 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
     healthcheck:
       test: ["CMD", "bash", "-c", "echo srvr | nc localhost 2181 | grep -q Mode"]
       interval: 10s
@@ -109,6 +112,8 @@ services:
     dns:
       - 8.8.8.8
       - 8.8.4.4
+    ports:
+      - "8001:8001"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
@@ -180,6 +185,7 @@ services:
       FMP_API_KEY: ${FMP_API_KEY:-}
       TICKERS: ${TICKERS:-AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,JPM,JNJ,XOM}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      INGESTOR_URL: ${INGESTOR_URL:-http://ingestor:8001}
     env_file:
       - path: .env
         required: false
@@ -204,3 +210,5 @@ services:
 volumes:
   mongo_data:
   kafka_data:
+  zookeeper_data:
+  zookeeper_log:

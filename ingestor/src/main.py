@@ -13,11 +13,13 @@ Both passes publish to the same Kafka topics:
 
 import logging
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from typing import Optional, Set
 
-from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 
+from .api import create_app
 from .config import Config
 from .edgar import EdgarClient
 from .fmp import FmpClient
@@ -242,6 +244,30 @@ def run_ingest_job(
     logger.info("Ingest run complete")
 
 
+# ── On-demand single-ticker ingest (used by the HTTP trigger API) ─────────────
+
+def ingest_one(
+    ticker: str,
+    cfg: Config,
+    edgar: EdgarClient,
+    producer: KafkaProducer,
+    store: ProcessedStore,
+    fmp: Optional[FmpClient],
+) -> None:
+    """Run an immediate EDGAR + FMP scan for a single ticker."""
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+        days=cfg.lookback_days
+    )
+    # Ensure the company record exists so the BFF search can find it
+    info = edgar.get_company_info(ticker)
+    if info:
+        store.upsert_company(ticker, info["name"])
+
+    edgar_found = _edgar_scan([ticker], edgar, producer, store, since)
+    if not edgar_found and fmp:
+        _fmp_scan([ticker], fmp, producer, store, since, skip_tickers=set())
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def _seed_company_universe(edgar: EdgarClient, store: ProcessedStore) -> None:
@@ -278,7 +304,8 @@ def main() -> None:
     # Run the RSS poll immediately too — catches any filings since last run
     rss_feed.poll(edgar, store, producer)
 
-    scheduler = BlockingScheduler(timezone="UTC")
+    # BackgroundScheduler ticks in a daemon thread so Flask can own the main thread.
+    scheduler = BackgroundScheduler(timezone="UTC")
 
     # ── Per-ticker backfill scan (every N hours) ───────────────────────────────
     scheduler.add_job(
@@ -292,8 +319,6 @@ def main() -> None:
     )
 
     # ── Universal RSS feed poll (every N minutes) ──────────────────────────────
-    # Polls the EDGAR live 8-K Atom feed to catch earnings filings from any
-    # public company — no ticker whitelist needed.
     scheduler.add_job(
         rss_feed.poll,
         trigger="interval",
@@ -304,15 +329,27 @@ def main() -> None:
         misfire_grace_time=300,
     )
 
+    scheduler.start()
     logger.info(
         "Scheduler started — per-ticker every %d hour(s), RSS every %d minute(s)",
         cfg.schedule_interval_hours,
         cfg.rss_poll_interval_minutes,
     )
+
+    # ── HTTP trigger API (Flask owns the main thread) ─────────────────────────
+    # Bind ingest_one with all shared objects so the API only needs the ticker.
+    _ingest_one = partial(ingest_one, cfg=cfg, edgar=edgar,
+                          producer=producer, store=store, fmp=fmp)
+
+    app = create_app(_ingest_one)
+    logger.info("HTTP trigger API listening on :8001")
     try:
-        scheduler.start()
+        app.run(host="0.0.0.0", port=8001, threaded=True)
     except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
         logger.info("Shutting down ingestor")
+        scheduler.shutdown(wait=False)
         producer.close()
         store.close()
 
