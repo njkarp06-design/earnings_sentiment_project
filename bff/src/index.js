@@ -7,8 +7,8 @@ if (!process.env.JWT_SECRET) {
   console.error('FATAL: JWT_SECRET is not set — add it to .env before starting');
   process.exit(1);
 }
-if (process.env.JWT_SECRET === 'changeme') {
-  console.warn('WARNING: JWT_SECRET is "changeme" — use a strong secret in production');
+if (process.env.JWT_SECRET.length < 32) {
+  console.warn('WARNING: JWT_SECRET is too short — use at least 32 random characters in production');
 }
 if (!process.env.ANTHROPIC_API_KEY) {
   console.warn('WARNING: ANTHROPIC_API_KEY is not set — the /inspect endpoint will fail at runtime');

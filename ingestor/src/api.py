@@ -11,10 +11,13 @@ the scheduler can tick in the background while Flask handles HTTP requests.
 """
 
 import logging
+import re
 import threading
 from typing import Callable
 
 from flask import Flask, jsonify
+
+_TICKER_RE = re.compile(r"^[A-Z]{1,10}$")
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +47,8 @@ def create_app(ingest_one: Callable[[str], None]) -> Flask:
     @app.post("/trigger/<ticker>")
     def trigger(ticker: str):
         ticker = ticker.upper()
+        if not _TICKER_RE.match(ticker):
+            return jsonify({"error": "Invalid ticker — must be 1–10 uppercase letters"}), 400
 
         with _lock:
             if ticker in _in_progress:

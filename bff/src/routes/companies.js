@@ -11,6 +11,9 @@ const TICKER_RE    = /^[A-Z]{1,10}$/;
 router.get('/:ticker/history', async (req, res, next) => {
   try {
     const ticker = req.params.ticker.toUpperCase();
+    if (!TICKER_RE.test(ticker)) {
+      return res.status(400).json({ error: 'Invalid ticker — must be 1–10 uppercase letters' });
+    }
     const items = await PriceReaction
       .find({ ticker })
       .sort({ call_date: -1 })
@@ -26,6 +29,9 @@ router.get('/:ticker/history', async (req, res, next) => {
 router.get('/:ticker/latest', async (req, res, next) => {
   try {
     const ticker = req.params.ticker.toUpperCase();
+    if (!TICKER_RE.test(ticker)) {
+      return res.status(400).json({ error: 'Invalid ticker — must be 1–10 uppercase letters' });
+    }
     const item = await PriceReaction
       .findOne({ ticker })
       .sort({ call_date: -1 })
@@ -42,6 +48,9 @@ router.get('/:ticker/latest', async (req, res, next) => {
 router.get('/:ticker/accuracy', async (req, res, next) => {
   try {
     const ticker = req.params.ticker.toUpperCase();
+    if (!TICKER_RE.test(ticker)) {
+      return res.status(400).json({ error: 'Invalid ticker — must be 1–10 uppercase letters' });
+    }
     const items = await PriceReaction
       .find({ ticker, return_7d: { $ne: null } })
       .select('confidence_score return_1d return_3d return_7d');
@@ -119,6 +128,9 @@ router.post('/:ticker/ingest', requireAuth, async (req, res, next) => {
 router.get('/:ticker', async (req, res, next) => {
   try {
     const ticker = req.params.ticker.toUpperCase();
+    if (!TICKER_RE.test(ticker)) {
+      return res.status(400).json({ error: 'Invalid ticker — must be 1–10 uppercase letters' });
+    }
     const db     = mongoose.connection.db;
     const company = await db.collection('companies').findOne({ ticker });
     if (!company) return res.status(404).json({ error: `No company found for ${ticker}` });
