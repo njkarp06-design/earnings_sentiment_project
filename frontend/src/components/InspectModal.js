@@ -46,7 +46,7 @@ function AnalysisBody({ text }) {
           return (
             <h3
               key={i}
-              className="text-slate-100 font-semibold text-sm mt-6 mb-2 first:mt-0 pb-1 border-b border-slate-700/60"
+              className="text-slate-100 font-semibold text-sm mt-6 mb-2 first:mt-0 pb-1 border-b border-slate-800/80"
             >
               {line.slice(3)}
             </h3>
@@ -156,25 +156,25 @@ export default function InspectModal({ item, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#080d1a]/85 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+        className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.7)] flex flex-col"
         style={{ maxHeight: '88vh' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ──────────────────────────────────────────────── */}
-        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 border-b border-slate-700/60 shrink-0">
+        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 border-b border-slate-800/80 shrink-0">
           <div>
             <div className="flex items-center gap-2">
               <SparkleIcon />
-              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
+              <span className="text-[10px] font-semibold text-cyan-400/70 uppercase tracking-widest">
                 Deep Analysis
               </span>
             </div>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-lg font-bold text-slate-100">{item.ticker}</span>
+              <span className="text-lg font-bold font-mono text-slate-100 tracking-tight">{item.ticker}</span>
               {item.company_name && (
                 <span className="text-slate-400 text-sm">{item.company_name}</span>
               )}
@@ -203,7 +203,7 @@ export default function InspectModal({ item, onClose }) {
               {done && (
                 <div className="mt-6 pt-4 border-t border-slate-700/40 flex items-center gap-2">
                   <SparkleIcon />
-                  <span className="text-[10px] text-slate-600 uppercase tracking-wider">
+                  <span className="text-[10px] text-slate-600 uppercase tracking-widest">
                     Analysis complete · Powered by Claude
                   </span>
                 </div>
