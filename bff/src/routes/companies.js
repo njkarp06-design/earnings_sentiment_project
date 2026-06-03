@@ -1,12 +1,19 @@
 const router        = require('express').Router();
 const mongoose      = require('mongoose');
 const PriceReaction = require('../models/PriceReaction');
+const requireAuth   = require('../middleware/auth');
+
+const INGESTOR_URL = process.env.INGESTOR_URL || 'http://ingestor:8001';
+const TICKER_RE    = /^[A-Z]{1,10}$/;
 
 // GET /companies/:ticker/history
 // All scored+correlated calls for a ticker, newest first.
 router.get('/:ticker/history', async (req, res, next) => {
   try {
     const ticker = req.params.ticker.toUpperCase();
+    if (!TICKER_RE.test(ticker)) {
+      return res.status(400).json({ error: 'Invalid ticker — must be 1–10 uppercase letters' });
+    }
     const items = await PriceReaction
       .find({ ticker })
       .sort({ call_date: -1 })
@@ -22,6 +29,9 @@ router.get('/:ticker/history', async (req, res, next) => {
 router.get('/:ticker/latest', async (req, res, next) => {
   try {
     const ticker = req.params.ticker.toUpperCase();
+    if (!TICKER_RE.test(ticker)) {
+      return res.status(400).json({ error: 'Invalid ticker — must be 1–10 uppercase letters' });
+    }
     const item = await PriceReaction
       .findOne({ ticker })
       .sort({ call_date: -1 })
@@ -38,6 +48,9 @@ router.get('/:ticker/latest', async (req, res, next) => {
 router.get('/:ticker/accuracy', async (req, res, next) => {
   try {
     const ticker = req.params.ticker.toUpperCase();
+    if (!TICKER_RE.test(ticker)) {
+      return res.status(400).json({ error: 'Invalid ticker — must be 1–10 uppercase letters' });
+    }
     const items = await PriceReaction
       .find({ ticker, return_7d: { $ne: null } })
       .select('confidence_score return_1d return_3d return_7d');
@@ -81,12 +94,43 @@ function summarise(arr, avg) {
   };
 }
 
+// POST /companies/:ticker/ingest
+// Auth-protected. Triggers an on-demand EDGAR + FMP scan for a single ticker
+// via the ingestor's HTTP API. Returns immediately; the caller should poll
+// GET /companies/:ticker/latest every few seconds until data appears.
+router.post('/:ticker/ingest', requireAuth, async (req, res, next) => {
+  try {
+    const ticker = req.params.ticker.toUpperCase();
+    if (!TICKER_RE.test(ticker)) {
+      return res.status(400).json({ error: 'Invalid ticker — must be 1–10 uppercase letters' });
+    }
+    const response = await fetch(`${INGESTOR_URL}/trigger/${ticker}`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      return res.status(502).json({ error: 'Ingestor trigger failed' });
+    }
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    // Ingestor not reachable (e.g. running outside Docker) — fail gracefully.
+    if (err.name === 'TimeoutError' || err.code === 'ECONNREFUSED') {
+      return res.status(503).json({ error: 'Ingestor unavailable' });
+    }
+    next(err);
+  }
+});
+
 // GET /companies/:ticker
 // Returns basic company info (name, sector, exchange, cik) from the companies
 // collection.  Works for any listed company, even those with no earnings data.
 router.get('/:ticker', async (req, res, next) => {
   try {
     const ticker = req.params.ticker.toUpperCase();
+    if (!TICKER_RE.test(ticker)) {
+      return res.status(400).json({ error: 'Invalid ticker — must be 1–10 uppercase letters' });
+    }
     const db     = mongoose.connection.db;
     const company = await db.collection('companies').findOne({ ticker });
     if (!company) return res.status(404).json({ error: `No company found for ${ticker}` });
