@@ -12,37 +12,37 @@ import {
 
 const tooltipStyle = {
   contentStyle: {
-    background: '#1e293b',
-    border: '1px solid #334155',
+    background: '#0f172a',
+    border: '1px solid #1e293b',
     borderRadius: 8,
     fontSize: 12,
-    color: '#f1f5f9',
+    color: '#e2e8f0',
   },
-  labelStyle: { color: '#94a3b8' },
+  labelStyle: { color: '#64748b' },
 };
 
 export default function ScoreChart({ data }) {
   return (
     <ResponsiveContainer width="100%" height={220}>
       <LineChart data={data} margin={{ top: 5, right: 16, left: -10, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
         <XAxis
           dataKey="date"
-          tick={{ fill: '#94a3b8', fontSize: 11 }}
+          tick={{ fill: '#64748b', fontSize: 11 }}
           tickLine={false}
-          axisLine={{ stroke: '#334155' }}
+          axisLine={{ stroke: '#1e293b' }}
         />
         <YAxis
           yAxisId="score"
           domain={[0, 100]}
-          tick={{ fill: '#94a3b8', fontSize: 11 }}
+          tick={{ fill: '#64748b', fontSize: 11 }}
           tickLine={false}
           axisLine={false}
         />
         <YAxis
           yAxisId="return"
           orientation="right"
-          tick={{ fill: '#94a3b8', fontSize: 11 }}
+          tick={{ fill: '#64748b', fontSize: 11 }}
           tickLine={false}
           axisLine={false}
           tickFormatter={(v) => `${v}%`}
@@ -55,25 +55,25 @@ export default function ScoreChart({ data }) {
           ]}
         />
         <Legend
-          wrapperStyle={{ fontSize: 11, color: '#94a3b8' }}
+          wrapperStyle={{ fontSize: 11, color: '#64748b' }}
           formatter={(name) => (name === 'score' ? 'Confidence' : '7d Return')}
         />
         <Line
           yAxisId="score"
           type="monotone"
           dataKey="score"
-          stroke="#3b82f6"
+          stroke="#06b6d4"
           strokeWidth={2}
-          dot={<circle r={4} fill="#3b82f6" />}
+          dot={<circle r={4} fill="#06b6d4" />}
           activeDot={{ r: 6 }}
         />
         <Line
           yAxisId="return"
           type="monotone"
           dataKey="return_7d"
-          stroke="#22c55e"
+          stroke="#10b981"
           strokeWidth={2}
-          dot={<circle r={4} fill="#22c55e" />}
+          dot={<circle r={4} fill="#10b981" />}
           activeDot={{ r: 6 }}
           connectNulls={false}
         />

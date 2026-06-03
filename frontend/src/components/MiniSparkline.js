@@ -13,7 +13,7 @@ function SparklineTooltip({ active, payload }) {
   const { day, pct } = payload[0].payload;
   const pos = pct >= 0;
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[10px] leading-tight shadow-lg">
+    <div className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[10px] leading-tight shadow-lg">
       <span className="text-slate-500">Day {day} </span>
       <span className={pos ? 'text-emerald-400 font-semibold' : 'text-red-400 font-semibold'}>
         {pos ? '+' : ''}{pct.toFixed(2)}%
