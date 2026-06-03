@@ -16,9 +16,9 @@ function fmtDate(str) {
 }
 
 function accentBorder(score) {
-  if (score >= 70) return 'border-t-emerald-500/70';
-  if (score >= 45) return 'border-t-amber-500/70';
-  return 'border-t-red-500/70';
+  if (score >= 70) return 'border-t-emerald-500/80';
+  if (score >= 45) return 'border-t-amber-500/80';
+  return 'border-t-red-500/80';
 }
 
 function BookmarkIcon({ filled }) {
@@ -48,7 +48,6 @@ function isLive(callDateStr) {
   return Date.now() - new Date(callDateStr + 'T12:00:00').getTime() < 24 * 60 * 60 * 1000;
 }
 
-// Days elapsed since the earnings call date (calendar days, not 24h rolling).
 function fmtCallDateRelative(dateStr) {
   if (!dateStr) return null;
   const today = new Date();
@@ -57,25 +56,24 @@ function fmtCallDateRelative(dateStr) {
   const diffDays = Math.round((today - callDay) / 86_400_000);
   if (diffDays <= 0)  return 'Today';
   if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7)   return `${diffDays} days ago`;
-  return null; // fall back to full formatted date
+  if (diffDays < 7)   return `${diffDays}d ago`;
+  return null;
 }
 
-// Unified time label — shows when the earnings call actually occurred.
 function TimeLabel({ live, callDate }) {
   const relative = fmtCallDateRelative(callDate);
   if (live) {
     return (
       <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-400">
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        Live · Today
+        Live
       </span>
     );
   }
   if (relative) {
-    return <span className="text-slate-400 text-xs">{relative}</span>;
+    return <span className="text-slate-600 text-[11px] font-mono">{relative}</span>;
   }
-  return <span className="text-slate-500 text-xs">{fmtDate(callDate)}</span>;
+  return <span className="text-slate-700 text-[11px]">{fmtDate(callDate)}</span>;
 }
 
 function estimateNextCall(callDateStr) {
@@ -110,7 +108,6 @@ export default function FeedCard({ item, showNextCall = false }) {
     }
   };
 
-  // Open overlay on card click — but not when clicking links or buttons
   const handleCardClick = (e) => {
     if (e.target.closest('a, button')) return;
     setOverlayOpen(true);
@@ -121,9 +118,9 @@ export default function FeedCard({ item, showNextCall = false }) {
       <div
         onClick={handleCardClick}
         className={clsx(
-          'bg-slate-800 border border-slate-700 border-t-2 rounded-xl overflow-hidden',
+          'bg-slate-900 border border-slate-800 border-t-[3px] rounded-xl overflow-hidden',
           'flex flex-col cursor-pointer',
-          'hover:border-slate-500 hover:shadow-lg hover:shadow-slate-900/50 transition-all',
+          'hover:border-slate-700 hover:shadow-card-hover transition-all duration-200',
           accentBorder(item.confidence_score),
         )}
       >
@@ -133,12 +130,12 @@ export default function FeedCard({ item, showNextCall = false }) {
             <Link
               href={`/companies/${item.ticker}`}
               onClick={(e) => e.stopPropagation()}
-              className="font-semibold text-blue-400 hover:text-blue-300 transition-colors"
+              className="font-mono font-bold text-cyan-400 hover:text-cyan-300 transition-colors tracking-tight"
             >
               {item.ticker}
             </Link>
             {item.company_name && (
-              <span className="ml-2 text-slate-400 text-sm truncate">{item.company_name}</span>
+              <span className="ml-2 text-slate-500 text-xs truncate">{item.company_name}</span>
             )}
           </div>
 
@@ -152,7 +149,7 @@ export default function FeedCard({ item, showNextCall = false }) {
                   aria-label={saved ? 'Remove from portfolio' : 'Add to portfolio'}
                   className={clsx(
                     'transition-colors disabled:opacity-50',
-                    saved ? 'text-emerald-400 hover:text-emerald-300' : 'text-slate-500 hover:text-slate-300',
+                    saved ? 'text-cyan-400 hover:text-cyan-300' : 'text-slate-700 hover:text-slate-400',
                   )}
                 >
                   <BookmarkIcon filled={saved} />
@@ -173,19 +170,19 @@ export default function FeedCard({ item, showNextCall = false }) {
         )}
 
         {/* ── Post-call returns ────────────────────────────────── */}
-        <div className="flex gap-6 px-5 py-3 border-t border-slate-700/50">
-          <ReturnBadge value={item.return_1d} label="1-day" pending={item.pending} />
-          <ReturnBadge value={item.return_3d} label="3-day" pending={item.pending} />
-          <ReturnBadge value={item.return_7d} label="7-day" pending={item.pending} />
+        <div className="flex gap-6 px-5 py-3 border-t border-slate-800/60">
+          <ReturnBadge value={item.return_1d} label="1d" pending={item.pending} />
+          <ReturnBadge value={item.return_3d} label="3d" pending={item.pending} />
+          <ReturnBadge value={item.return_7d} label="7d" pending={item.pending} />
         </div>
 
         {/* ── CEO confidence + key phrases ─────────────────────── */}
-        <div className="flex flex-col gap-3 px-5 pt-3 pb-3 border-t border-slate-700/50">
+        <div className="flex flex-col gap-3 px-5 pt-3 pb-3 border-t border-slate-800/60">
           <div>
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-1.5 uppercase tracking-wide">
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-600 mb-2 uppercase tracking-widest">
               CEO Confidence
-              {item.trend === 'up'   && <span className="text-emerald-400 normal-case tracking-normal">↑</span>}
-              {item.trend === 'down' && <span className="text-red-400 normal-case tracking-normal">↓</span>}
+              {item.trend === 'up'   && <span className="text-emerald-400 normal-case tracking-normal text-xs">↑</span>}
+              {item.trend === 'down' && <span className="text-red-400 normal-case tracking-normal text-xs">↓</span>}
             </div>
             <ScoreBar score={item.confidence_score} />
           </div>
@@ -195,7 +192,7 @@ export default function FeedCard({ item, showNextCall = false }) {
               {item.key_phrases.slice(0, 3).map((phrase, i) => (
                 <span
                   key={i}
-                  className="text-[11px] bg-slate-700/80 text-slate-300 px-2.5 py-0.5 rounded-full"
+                  className="text-[10px] bg-slate-800 border border-slate-700/50 text-slate-400 px-2.5 py-0.5 rounded-full"
                 >
                   {phrase}
                 </span>
@@ -204,16 +201,16 @@ export default function FeedCard({ item, showNextCall = false }) {
           )}
 
           {showNextCall && item.call_date && (
-            <p className="text-[10px] text-slate-600">
-              ~Next call {estimateNextCall(item.call_date)}
+            <p className="text-[10px] text-slate-700 font-mono">
+              ~Next: {estimateNextCall(item.call_date)}
             </p>
           )}
         </div>
 
         {/* ── Inspect footer hint ──────────────────────────────── */}
-        <div className="flex items-center gap-1.5 px-5 py-2.5 border-t border-slate-700/40 text-slate-600 hover:text-slate-400 transition-colors">
+        <div className="flex items-center gap-1.5 px-5 py-2.5 border-t border-slate-800/40 text-slate-700 hover:text-cyan-400/60 transition-colors">
           <SparkleIcon />
-          <span className="text-[10px] uppercase tracking-wide font-medium">Inspect</span>
+          <span className="text-[10px] uppercase tracking-widest font-medium">Inspect</span>
         </div>
       </div>
 
