@@ -23,18 +23,18 @@ function SectionHeader({ label, count, isLive = false }) {
     <div className="flex items-center gap-3 mb-5">
       <div className="flex items-center gap-2 shrink-0">
         {isLive && (
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
         )}
-        <span className={`text-[11px] font-semibold uppercase tracking-widest ${
-          isLive ? 'text-emerald-400' : 'text-slate-400'
+        <span className={`text-[10px] font-semibold uppercase tracking-widest ${
+          isLive ? 'text-emerald-400' : 'text-slate-500'
         }`}>
           {label}
         </span>
-        <span className="text-[11px] text-slate-600 font-medium tabular-nums">
+        <span className="text-[10px] text-slate-700 font-mono tabular-nums">
           {count} {count === 1 ? 'report' : 'reports'}
         </span>
       </div>
-      <div className="flex-1 h-px bg-slate-700/50" />
+      <div className="flex-1 h-px bg-slate-800" />
     </div>
   );
 }
@@ -60,11 +60,9 @@ export default function DashboardPage() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
   const [overlayItem, setOverlayItem] = useState(null);
-  const [filter, setFilter]         = useState('all'); // 'all' | 'portfolio'
+  const [filter, setFilter]         = useState('all');
   const lastFetchRef = useRef(null);
 
-  // Tick every 60 s — keeps section boundaries (Live / This Week / Earlier) current
-  // even when no new feed items arrive, so cards cross date thresholds automatically.
   const [, setTick] = useState(0);
   const pollCountRef = useRef(0);
 
@@ -75,14 +73,12 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
 
     const interval = setInterval(() => {
-      // Force a re-render so getSectionKey() uses the current date on every tick.
       setTick(t => t + 1);
-
       pollCountRef.current += 1;
-      const isFull = pollCountRef.current % 5 === 0; // full refresh every 5 min
+      const isFull = pollCountRef.current % 5 === 0;
 
       const fetcher = isFull
-        ? getFeed()                                         // replaces all items (picks up backfilled returns)
+        ? getFeed()
         : (lastFetchRef.current ? getFeedSince(lastFetchRef.current) : getFeed());
 
       fetcher
@@ -112,7 +108,6 @@ export default function DashboardPage() {
     ? items.filter(i => watchlist.includes(i.ticker))
     : items;
 
-  // Bucket items into sections by call_date
   const liveItems    = displayed.filter(i => getSectionKey(i.call_date) === 'live');
   const weekItems    = displayed.filter(i => getSectionKey(i.call_date) === 'week');
   const earlierItems = displayed.filter(i => getSectionKey(i.call_date) === 'earlier');
@@ -123,8 +118,8 @@ export default function DashboardPage() {
     <div>
       {/* ── Page header ───────────────────────────────────────── */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-100">Earnings Feed</h1>
-        <p className="text-slate-400 mt-1 text-sm">
+        <h1 className="text-2xl font-bold text-slate-100 tracking-tight">Earnings Feed</h1>
+        <p className="text-slate-500 mt-1 text-sm">
           CEO confidence scores and post-call stock reactions
         </p>
       </div>
@@ -137,15 +132,15 @@ export default function DashboardPage() {
 
       {/* ── Portfolio filter toggle ───────────────────────────── */}
       {isLoggedIn && (
-        <div className="flex items-center gap-1 mb-6 bg-slate-800 border border-slate-700 rounded-lg p-1 w-fit">
+        <div className="flex items-center gap-1 mb-6 bg-slate-900 border border-slate-800 rounded-lg p-1 w-fit">
           {['all', 'portfolio'].map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 filter === f
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-cyan-500 text-slate-900 font-semibold'
+                  : 'text-slate-500 hover:text-slate-200'
               }`}
             >
               {f === 'all' ? 'All' : 'My Portfolio'}
@@ -160,22 +155,22 @@ export default function DashboardPage() {
       {/* ── Error state ───────────────────────────────────────── */}
       {error && (
         <div className="text-center py-16">
-          <p className="text-slate-400">Could not load feed</p>
+          <p className="text-slate-500">Could not load feed</p>
           <p className="text-red-400 text-sm mt-1">{error}</p>
         </div>
       )}
 
       {/* ── Empty state ───────────────────────────────────────── */}
       {!loading && !error && !hasSections && (
-        <div className="text-center py-20 text-slate-500">
+        <div className="text-center py-20 text-slate-600">
           {filter === 'portfolio' ? (
             <>
-              <p className="text-lg mb-1">No portfolio companies in the feed yet</p>
+              <p className="text-base mb-1 text-slate-400">No portfolio companies in the feed yet</p>
               <p className="text-sm">Your saved companies will appear here when they report.</p>
             </>
           ) : (
             <>
-              <p className="text-lg mb-1">No earnings calls yet</p>
+              <p className="text-base mb-1 text-slate-400">No earnings calls yet</p>
               <p className="text-sm">The ingestor will populate this feed automatically.</p>
             </>
           )}
@@ -221,11 +216,11 @@ function SkeletonGrid() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="bg-slate-800 border border-slate-700 rounded-xl p-5 animate-pulse space-y-3">
-          <div className="h-4 bg-slate-700 rounded w-1/3" />
-          <div className="h-2 bg-slate-700 rounded w-full" />
-          <div className="h-2 bg-slate-700 rounded w-2/3" />
-          <div className="h-8 bg-slate-700 rounded w-full" />
+        <div key={i} className="bg-slate-900 border border-slate-800 rounded-xl p-5 animate-pulse space-y-3">
+          <div className="h-4 bg-slate-800 rounded w-1/3" />
+          <div className="h-2 bg-slate-800 rounded w-full" />
+          <div className="h-2 bg-slate-800 rounded w-2/3" />
+          <div className="h-8 bg-slate-800 rounded w-full" />
         </div>
       ))}
     </div>

@@ -18,30 +18,29 @@ export default function PulseBar() {
   if (!sectors.length) return null;
 
   return (
-    <div className="flex items-stretch border border-slate-700 rounded-xl overflow-x-auto bg-slate-800/40 mb-6 text-xs">
-      <div className="px-4 py-2.5 flex items-center shrink-0 border-r border-slate-700">
-        <span className="font-bold text-slate-500 uppercase tracking-widest text-[10px]">
-          Market Pulse
-        </span>
+    <div className="flex items-stretch border border-slate-800 rounded-xl overflow-x-auto bg-slate-900/50 mb-6 text-xs">
+      <div className="px-4 py-3 flex items-center shrink-0 border-r border-slate-800">
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+          <span className="font-semibold text-cyan-400/70 uppercase tracking-widest text-[10px]">
+            Market Pulse
+          </span>
+        </div>
       </div>
 
       {sectors.map((s, i) => (
         <div
           key={s.sector}
-          className={`flex items-center gap-2.5 px-4 py-2.5 shrink-0 ${
-            i < sectors.length - 1 ? 'border-r border-slate-700' : ''
+          className={`flex items-center gap-2.5 px-4 py-3 shrink-0 ${
+            i < sectors.length - 1 ? 'border-r border-slate-800' : ''
           }`}
         >
-          <span className="text-slate-400">{s.sector}</span>
-          <span className={`font-semibold tabular-nums ${scoreColor(s.avg_confidence)}`}>
+          <span className="text-slate-500 text-[11px]">{s.sector}</span>
+          <span className={`font-semibold font-mono tabular-nums ${scoreColor(s.avg_confidence)}`}>
             {s.avg_confidence}
           </span>
           {s.avg_return_7d != null && (
-            <span
-              className={`tabular-nums ${
-                s.avg_return_7d >= 0 ? 'text-emerald-400' : 'text-red-400'
-              }`}
-            >
+            <span className={`font-mono tabular-nums ${s.avg_return_7d >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {s.avg_return_7d >= 0 ? '+' : ''}{s.avg_return_7d}%
             </span>
           )}
