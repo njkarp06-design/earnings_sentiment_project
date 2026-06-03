@@ -63,7 +63,9 @@ export default function SearchOverlay({ item, onClose }) {
 
   const saved      = watchlist.includes(item.ticker);
   const activeItem = fetchedItem ?? item;
-  const hasData    = !!activeItem.has_data;
+  // has_data is set by the search endpoint; feed items don't carry it but
+  // do have confidence_score — use that as the fallback signal.
+  const hasData    = !!(activeItem.has_data ?? (activeItem.confidence_score != null));
   const isPositive = activeItem.return_7d != null ? activeItem.return_7d >= 0 : null;
 
   // On-demand ingest: trigger + poll every 5 s for up to 90 s.
