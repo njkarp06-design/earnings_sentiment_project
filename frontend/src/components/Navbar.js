@@ -19,40 +19,59 @@ export default function Navbar() {
     router.push('/');
   };
 
-  const linkClass = (path) =>
-    pathname === path
-      ? 'text-white font-medium'
-      : 'text-slate-400 hover:text-white transition-colors';
+  const navLink = (href, label) => {
+    const active = pathname === href;
+    return (
+      <Link
+        href={href}
+        className={`relative pb-0.5 text-sm transition-colors ${
+          active
+            ? 'text-cyan-400 font-medium'
+            : 'text-slate-400 hover:text-slate-200'
+        }`}
+      >
+        {label}
+        {active && (
+          <span className="absolute -bottom-[1px] left-0 right-0 h-[1.5px] bg-cyan-400 rounded-full" />
+        )}
+      </Link>
+    );
+  };
 
   return (
-    <nav className="sticky top-0 z-10 border-b border-slate-700 bg-slate-900/80 backdrop-blur-md">
+    <nav className="sticky top-0 z-40 border-b border-slate-800/80 bg-[#080d1a]/90 backdrop-blur-md">
       <div className="max-w-6xl mx-auto px-4 flex items-center justify-between h-14">
-        <Link href="/" className="text-blue-400 font-semibold text-lg tracking-tight">
-          EarningsSentiment
+
+        {/* Brand mark */}
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <div className="w-6 h-6 rounded-md bg-cyan-500 flex items-center justify-center font-bold text-[10px] text-slate-900 group-hover:bg-cyan-400 transition-colors shrink-0">
+            ES
+          </div>
+          <span className="font-semibold text-slate-100 tracking-tight text-sm">
+            EarningsSentiment
+          </span>
         </Link>
 
-        <div className="flex items-center gap-6 text-sm">
-          <Link href="/" className={linkClass('/')}>Feed</Link>
-          <Link href="/leaderboard" className={linkClass('/leaderboard')}>Leaderboard</Link>
-          <Link href="/calendar" className={linkClass('/calendar')}>Calendar</Link>
-
-          {authed && (
-            <Link href="/portfolio" className={linkClass('/portfolio')}>Portfolio</Link>
-          )}
+        {/* Nav links */}
+        <div className="flex items-center gap-6">
+          {navLink('/', 'Feed')}
+          {navLink('/leaderboard', 'Leaderboard')}
+          {navLink('/calendar', 'Calendar')}
+          {authed && navLink('/portfolio', 'Portfolio')}
 
           {authed ? (
             <button
               onClick={logout}
-              className="text-slate-400 hover:text-white transition-colors"
+              className="text-sm text-slate-500 hover:text-slate-200 transition-colors"
             >
               Logout
             </button>
           ) : (
             <>
-              <Link href="/login" className={linkClass('/login')}>Login</Link>
+              {navLink('/login', 'Login')}
               <Link
                 href="/register"
-                className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg transition-colors"
+                className="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold px-3.5 py-1.5 rounded-lg text-sm transition-colors"
               >
                 Sign up
               </Link>
