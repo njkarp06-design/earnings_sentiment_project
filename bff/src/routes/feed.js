@@ -9,8 +9,9 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 router.get('/', async (req, res, next) => {
   try {
     const query = {};
-    if (req.query.since) {
-      query.correlated_at = { $gt: req.query.since };
+    const since = req.query.since;
+    if (typeof since === 'string' && since) {
+      query.correlated_at = { $gt: since };
     }
 
     const items = await PriceReaction
