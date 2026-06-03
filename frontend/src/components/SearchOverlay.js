@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import ScoreBar from './ScoreBar';
@@ -7,6 +7,7 @@ import ReturnBadge from './ReturnBadge';
 import MiniSparkline from './MiniSparkline';
 import InspectModal from './InspectModal';
 import { usePortfolio } from '@/context/PortfolioContext';
+import { triggerIngest, getCompanyLatest } from '@/lib/api';
 
 function SparkleIcon() {
   return (
@@ -23,9 +24,8 @@ function fmtDate(str) {
   });
 }
 
-function accentBorder(item) {
-  if (!item.has_data) return 'border-t-slate-600';
-  const score = item.confidence_score;
+function accentBorder(score, hasData) {
+  if (!hasData) return 'border-t-slate-600';
   if (score >= 70) return 'border-t-emerald-500/70';
   if (score >= 45) return 'border-t-amber-500/70';
   return 'border-t-red-500/70';
@@ -53,9 +53,57 @@ export default function SearchOverlay({ item, onClose }) {
   const [portfolioError, setPortfolioError] = useState(null);
   const [inspecting, setInspecting] = useState(false);
 
+  // On-demand fetch state
+  const [fetchedItem, setFetchedItem] = useState(null);
+  // 'idle' | 'loading' | 'done' | 'not_found'
+  const [fetchState, setFetchState] = useState('idle');
+  // Cancellation flag — set to true on unmount so in-flight polling stops
+  const pollCancelledRef = useRef(false);
+  useEffect(() => () => { pollCancelledRef.current = true; }, []);
+
   const saved      = watchlist.includes(item.ticker);
-  const hasData    = !!item.has_data;
-  const isPositive = item.return_7d != null ? item.return_7d >= 0 : null;
+  const activeItem = fetchedItem ?? item;
+  const hasData    = !!activeItem.has_data;
+  const isPositive = activeItem.return_7d != null ? activeItem.return_7d >= 0 : null;
+
+  // On-demand ingest: trigger + poll every 5 s for up to 90 s.
+  // Uses pollCancelledRef so the recursive setTimeout stops cleanly if the
+  // overlay is closed before data arrives (prevents setState on unmounted component).
+  const handleFetch = async () => {
+    pollCancelledRef.current = false;
+    setFetchState('loading');
+    try {
+      await triggerIngest(item.ticker);
+    } catch {
+      // Ingestor unavailable or not authed — keep polling anyway in case
+      // a previous trigger is already running.
+    }
+
+    const POLL_INTERVAL = 5_000;
+    const TIMEOUT = 90_000;
+    const start = Date.now();
+
+    const poll = async () => {
+      if (pollCancelledRef.current) return;
+      if (Date.now() - start > TIMEOUT) {
+        setFetchState('not_found');
+        return;
+      }
+      try {
+        const data = await getCompanyLatest(item.ticker);
+        if (data && data.confidence_score != null) {
+          setFetchedItem({ ...data, has_data: true });
+          setFetchState('done');
+          return;
+        }
+      } catch {
+        // 404 = not ready yet, keep polling
+      }
+      setTimeout(poll, POLL_INTERVAL);
+    };
+
+    setTimeout(poll, POLL_INTERVAL);
+  };
 
   // ESC key to close — skip when InspectModal is layered on top
   useEffect(() => {
@@ -95,7 +143,7 @@ export default function SearchOverlay({ item, onClose }) {
       <div
         className={clsx(
           'w-full max-w-lg bg-slate-800 border border-slate-700 border-t-[3px] rounded-2xl overflow-hidden shadow-2xl',
-          accentBorder(item),
+          accentBorder(activeItem.confidence_score, hasData),
         )}
         onClick={(e) => e.stopPropagation()}
       >
@@ -103,17 +151,17 @@ export default function SearchOverlay({ item, onClose }) {
         <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-xl font-bold text-slate-100">{item.ticker}</span>
-              {item.model_used && (
+              <span className="text-xl font-bold text-slate-100">{activeItem.ticker}</span>
+              {activeItem.model_used && (
                 <span className="text-[10px] text-slate-500 bg-slate-700 px-2 py-0.5 rounded-full shrink-0">
-                  {item.model_used.replace('claude-', '')}
+                  {activeItem.model_used.replace('claude-', '')}
                 </span>
               )}
             </div>
-            {item.company_name && (
-              <p className="text-slate-400 text-sm mt-0.5">{item.company_name}</p>
+            {activeItem.company_name && (
+              <p className="text-slate-400 text-sm mt-0.5">{activeItem.company_name}</p>
             )}
-            <p className="text-slate-500 text-xs mt-1">{fmtDate(item.call_date)}</p>
+            <p className="text-slate-500 text-xs mt-1">{fmtDate(activeItem.call_date)}</p>
           </div>
           <button
             onClick={onClose}
@@ -127,21 +175,21 @@ export default function SearchOverlay({ item, onClose }) {
         {hasData ? (
           <>
             {/* ── Sparkline ────────────────────────────────────────── */}
-            {item.price_series?.length > 0 && (
+            {activeItem.price_series?.length > 0 && (
               <div className="px-3 pb-2">
-                <MiniSparkline data={item.price_series} positive={isPositive} height={100} />
+                <MiniSparkline data={activeItem.price_series} positive={isPositive} height={100} />
               </div>
             )}
 
             {/* ── Returns ──────────────────────────────────────────── */}
             <div className="flex gap-8 px-6 py-4 border-t border-slate-700/50">
-              <ReturnBadge value={item.return_1d} label="1-day" />
-              <ReturnBadge value={item.return_3d} label="3-day" />
-              <ReturnBadge value={item.return_7d} label="7-day" />
-              {item.call_date_close != null && (
+              <ReturnBadge value={activeItem.return_1d} label="1-day" />
+              <ReturnBadge value={activeItem.return_3d} label="3-day" />
+              <ReturnBadge value={activeItem.return_7d} label="7-day" />
+              {activeItem.call_date_close != null && (
                 <div className="text-center ml-auto">
                   <div className="text-xs font-semibold text-slate-300 tabular-nums">
-                    ${Number(item.call_date_close).toFixed(2)}
+                    ${Number(activeItem.call_date_close).toFixed(2)}
                   </div>
                   <div className="text-[10px] text-slate-500 mt-0.5">Close</div>
                 </div>
@@ -152,11 +200,11 @@ export default function SearchOverlay({ item, onClose }) {
             <div className="flex flex-col gap-3 px-6 py-4 border-t border-slate-700/50">
               <div>
                 <div className="text-[11px] text-slate-500 uppercase tracking-wide mb-1.5">CEO Confidence</div>
-                <ScoreBar score={item.confidence_score} />
+                <ScoreBar score={activeItem.confidence_score} />
               </div>
-              {item.key_phrases?.length > 0 && (
+              {activeItem.key_phrases?.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
-                  {item.key_phrases.map((phrase, i) => (
+                  {activeItem.key_phrases.map((phrase, i) => (
                     <span
                       key={i}
                       className="text-[11px] bg-slate-700/80 text-slate-300 px-2.5 py-0.5 rounded-full"
@@ -171,26 +219,63 @@ export default function SearchOverlay({ item, onClose }) {
         ) : (
           /* ── No earnings data yet ──────────────────────────────── */
           <div className="px-6 py-6 border-t border-slate-700/50">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
-                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
-                </svg>
+            {fetchState === 'loading' ? (
+              /* Fetching */
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-slate-200">Fetching from SEC EDGAR…</p>
+                  <p className="text-xs text-slate-500 mt-0.5">This usually takes 30–60 seconds</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-slate-200">No earnings data yet</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  {item.ticker} is in our universe and will appear in the feed automatically
-                  once an earnings filing is detected and scored.
-                  {isLoggedIn && ' Save it to your portfolio to get notified first.'}
-                </p>
-                {item.sector && (
-                  <span className="inline-block mt-2 text-[11px] bg-slate-700 text-slate-400 px-2.5 py-0.5 rounded-full">
-                    {item.sector}
-                  </span>
-                )}
+            ) : fetchState === 'not_found' ? (
+              /* Nothing found after timeout */
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
+                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-200">No recent earnings calls found</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    No earnings call transcript was found on SEC EDGAR or FMP for {item.ticker} in the last {30} days.
+                    {isLoggedIn && ' Add it to your portfolio and it will be monitored automatically going forward.'}
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              /* Idle — show fetch prompt */
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
+                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-200">No earnings data yet</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {item.ticker} is in our universe but hasn&apos;t been scored yet.
+                  </p>
+                  {item.sector && (
+                    <span className="inline-block mt-2 text-[11px] bg-slate-700 text-slate-400 px-2.5 py-0.5 rounded-full">
+                      {item.sector}
+                    </span>
+                  )}
+                  {isLoggedIn && (
+                    <button
+                      onClick={handleFetch}
+                      className="mt-3 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                      </svg>
+                      Fetch latest earnings
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -250,7 +335,7 @@ export default function SearchOverlay({ item, onClose }) {
     </div>
 
     {hasData && inspecting && (
-      <InspectModal item={item} onClose={() => setInspecting(false)} />
+      <InspectModal item={activeItem} onClose={() => setInspecting(false)} />
     )}
     </>
   );
