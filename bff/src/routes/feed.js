@@ -18,14 +18,15 @@ router.get('/', async (req, res, next) => {
       .find(query)
       .sort({ correlated_at: -1 })
       .limit(50)
-      .select('-_id filing_id ticker company_name sector call_date confidence_score trend key_phrases return_1d return_3d return_7d call_date_close price_series correlated_at');
+      .select('-_id filing_id ticker company_name sector call_date confidence_score trend key_phrases model_used return_1d return_3d return_7d call_date_close price_series correlated_at');
 
     const now = Date.now();
     const enriched = items.map(item => {
       const obj = item.toObject ? item.toObject() : item;
       const callAge = now - new Date(obj.call_date + 'T12:00:00').getTime();
-      obj.pending = callAge < SEVEN_DAYS_MS &&
+      obj.pending  = callAge < SEVEN_DAYS_MS &&
         (obj.return_1d == null || obj.return_3d == null || obj.return_7d == null);
+      obj.has_data = true;
       return obj;
     });
 
