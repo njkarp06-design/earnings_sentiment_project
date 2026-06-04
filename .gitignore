@@ -220,3 +220,26 @@ __marimo__/
 # Un-ignore frontend JS lib directory (Python 'lib/' pattern above would otherwise exclude it)
 !frontend/src/lib/
 !frontend/src/lib/**
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.eslintcache
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/.terraform.lock.hcl
+infra/terraform/terraform.tfvars
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.backup
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
