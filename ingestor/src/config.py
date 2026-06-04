@@ -15,6 +15,8 @@ class Config:
     rss_poll_interval_minutes: int  # how often to poll the EDGAR live 8-K RSS feed
     # Empty string = FMP disabled; set to enable fallback for EDGAR misses
     fmp_api_key: str = ""
+    # Empty string = Alpha Vantage disabled; free tier (25 req/day) used only for on-demand fetches
+    alphavantage_api_key: str = ""
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -35,8 +37,9 @@ class Config:
                 "EarningsSentimentResearch contact@example.com",
             ),
             tickers=[t.strip().upper() for t in tickers_raw.split(",") if t.strip()],
-            lookback_days=int(os.getenv("LOOKBACK_DAYS", "30")),
+            lookback_days=int(os.getenv("LOOKBACK_DAYS", "15000")),
             schedule_interval_hours=int(os.getenv("SCHEDULE_INTERVAL_HOURS", "2")),
             rss_poll_interval_minutes=int(os.getenv("RSS_POLL_INTERVAL_MINUTES", "10")),
             fmp_api_key=os.getenv("FMP_API_KEY", ""),
+            alphavantage_api_key=os.getenv("ALPHAVANTAGE_API_KEY", ""),
         )

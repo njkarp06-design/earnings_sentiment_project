@@ -12,6 +12,7 @@ Both passes publish to the same Kafka topics:
 """
 
 import logging
+import threading
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from typing import Optional, Set
@@ -20,6 +21,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 
 from .api import create_app
+from .alphavantage import AlphaVantageClient
 from .config import Config
 from .edgar import EdgarClient
 from .fmp import FmpClient
@@ -158,6 +160,40 @@ def _fmp_scan(
             )
 
 
+# ── Pass 3: Alpha Vantage (on-demand only — free tier is 25 req/day) ─────────
+
+def _av_scan(
+    tickers: list,
+    av: AlphaVantageClient,
+    producer: KafkaProducer,
+    store: ProcessedStore,
+    n_quarters: int = 8,
+    skip_tickers: Set[str] = None,
+) -> None:
+    """
+    Fetch recent transcripts from Alpha Vantage for tickers not covered by EDGAR/FMP.
+    Only used in on-demand ingest_one — the 25 req/day free limit makes it unsuitable
+    for bulk scheduled scans.
+    """
+    targets = [t for t in tickers if t not in (skip_tickers or set())]
+    if not targets:
+        return
+
+    logger.info("AV: fetching last %d quarters for %d ticker(s): %s", n_quarters, len(targets), targets)
+
+    for ticker in targets:
+        transcripts = av.fetch_recent_transcripts(ticker, n_quarters)
+        for t in transcripts:
+            filing_id = t["filing_id"]
+            if store.is_processed(filing_id):
+                continue
+            store.upsert_company(ticker, ticker)
+            _publish_transcript_and_prices(
+                ticker, ticker, t["call_date"], filing_id, "",
+                t["text"], producer, store, source="alpha_vantage",
+            )
+
+
 # ── Shared publish helper ─────────────────────────────────────────────────────
 
 def _publish_transcript_and_prices(
@@ -244,6 +280,41 @@ def run_ingest_job(
     logger.info("Ingest run complete")
 
 
+# ── RSS-triggered historical backfill ────────────────────────────────────────
+
+def _backfill_ticker(
+    ticker: str,
+    cfg: Config,
+    edgar: EdgarClient,
+    producer: KafkaProducer,
+    store: ProcessedStore,
+    fmp: Optional[FmpClient],
+    av: Optional[AlphaVantageClient] = None,
+) -> None:
+    """
+    Run a full EDGAR + FMP + Alpha Vantage history scan for a single ticker
+    in a daemon thread. Called whenever the RSS poller discovers a new company's
+    earnings call so that company's entire prior call history is also ingested.
+    The is_processed guard makes repeat calls cheap — already-processed quarters
+    are skipped instantly, so calling this more than once per ticker is safe.
+    """
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=cfg.lookback_days)
+
+    def _run() -> None:
+        logger.info("Backfill: %s — full history scan started", ticker)
+        try:
+            found = _edgar_scan([ticker], edgar, producer, store, since)
+            if not found and fmp:
+                _fmp_scan([ticker], fmp, producer, store, since, skip_tickers=set())
+            if av:
+                _av_scan([ticker], av, producer, store, n_quarters=4, skip_tickers=found)
+        except Exception as exc:
+            logger.error("Backfill: %s — error: %s", ticker, exc)
+        logger.info("Backfill: %s — complete", ticker)
+
+    threading.Thread(target=_run, daemon=True, name=f"backfill-{ticker}").start()
+
+
 # ── On-demand single-ticker ingest (used by the HTTP trigger API) ─────────────
 
 def ingest_one(
@@ -253,19 +324,79 @@ def ingest_one(
     producer: KafkaProducer,
     store: ProcessedStore,
     fmp: Optional[FmpClient],
+    av: Optional[AlphaVantageClient] = None,
 ) -> None:
-    """Run an immediate EDGAR + FMP scan for a single ticker."""
-    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
-        days=cfg.lookback_days
-    )
-    # Ensure the company record exists so the BFF search can find it
+    """Run an immediate multi-source scan for a single ticker.
+
+    Pass 1 — EDGAR 90-day window  (fast, shows data in the polling window)
+    Pass 2 — FMP fallback          (if key configured)
+    Pass 3 — Alpha Vantage 8 qtrs  (free tier, fills recent history)
+    Pass 4 — Full historical backfill spawned in background thread
+    """
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=90)
+
     info = edgar.get_company_info(ticker)
     if info:
         store.upsert_company(ticker, info["name"])
 
     edgar_found = _edgar_scan([ticker], edgar, producer, store, since)
+
     if not edgar_found and fmp:
         _fmp_scan([ticker], fmp, producer, store, since, skip_tickers=set())
+
+    if av:
+        _av_scan([ticker], av, producer, store, n_quarters=8, skip_tickers=edgar_found)
+
+    # Spawn full historical backfill so history depth builds in the background
+    # even if the 90-day window only surfaced the latest call.
+    _backfill_ticker(ticker, cfg, edgar, producer, store, fmp, av=av)
+
+
+# ── Stale-price refresh job ──────────────────────────────────────────────────
+
+_REFRESH_BATCH = 30   # max records per run to avoid hammering yfinance
+_REFRESH_DELAY = 2.0  # seconds between yfinance calls within a batch
+
+def _refresh_stale_prices(producer: KafkaProducer, store: ProcessedStore) -> None:
+    """
+    Re-fetch and re-publish prices for PriceReaction documents that still have
+    null return_7d despite being old enough for the full window to have closed.
+
+    This covers the common case where a transcript was ingested on its call date
+    — yfinance had no future price data yet, so D+1/D+3/D+7 returns were written
+    as null.  Re-publishing the now-available prices causes the correlation
+    service to upsert updated returns into the existing document.
+    """
+    import time as _time
+
+    stale = store.get_stale_price_records(min_age_days=1)
+    if not stale:
+        logger.debug("Price refresh: no stale records")
+        return
+
+    logger.info("Price refresh: %d record(s) with null return_7d", len(stale))
+    refreshed = 0
+
+    for doc in stale[:_REFRESH_BATCH]:
+        ticker    = doc.get("ticker")
+        call_date = doc.get("call_date")
+        if not ticker or not call_date:
+            continue
+
+        price_rows = fetch_price_window(ticker, call_date)
+        if price_rows:
+            try:
+                producer.publish_prices(normalise_prices(ticker, call_date, price_rows))
+                refreshed += 1
+                logger.info("Price refresh: re-published %s %s", ticker, call_date)
+            except Exception as exc:
+                logger.warning("Price refresh: publish failed for %s: %s", ticker, exc)
+        else:
+            logger.debug("Price refresh: still no price data for %s %s", ticker, call_date)
+
+        _time.sleep(_REFRESH_DELAY)
+
+    logger.info("Price refresh: %d/%d records re-published", refreshed, min(len(stale), _REFRESH_BATCH))
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -293,6 +424,7 @@ def main() -> None:
     producer = KafkaProducer(bootstrap_servers=cfg.kafka_bootstrap_servers)
     store = ProcessedStore(mongo_uri=cfg.mongo_uri)
     fmp = FmpClient(cfg.fmp_api_key) if cfg.fmp_api_key else None
+    av  = AlphaVantageClient(cfg.alphavantage_api_key) if cfg.alphavantage_api_key else None
 
     # Seed the full company universe on startup (no-op if already done).
     # This gives the BFF search endpoint a complete universe to query against.
@@ -301,8 +433,18 @@ def main() -> None:
     # Run the per-ticker scan immediately so you don't wait until the first hour
     run_ingest_job(cfg, edgar, producer, store, fmp)
 
+    # Immediately refresh any calls that already have null returns — don't wait
+    # for the first scheduled tick two hours from now.
+    _refresh_stale_prices(producer, store)
+
+    # Callback: when RSS discovers a new company, spawn a full history backfill
+    # for that ticker in a daemon thread (is_processed keeps repeat calls cheap).
+    _on_new_ticker = partial(
+        _backfill_ticker, cfg=cfg, edgar=edgar, producer=producer, store=store, fmp=fmp, av=av
+    )
+
     # Run the RSS poll immediately too — catches any filings since last run
-    rss_feed.poll(edgar, store, producer)
+    rss_feed.poll(edgar, store, producer, _on_new_ticker)
 
     # BackgroundScheduler ticks in a daemon thread so Flask can own the main thread.
     scheduler = BackgroundScheduler(timezone="UTC")
@@ -323,10 +465,24 @@ def main() -> None:
         rss_feed.poll,
         trigger="interval",
         minutes=cfg.rss_poll_interval_minutes,
-        args=[edgar, store, producer],
+        args=[edgar, store, producer, _on_new_ticker],
         id="rss_feed_poll",
         max_instances=1,
         misfire_grace_time=300,
+    )
+
+    # ── Stale-price refresh (every 2 hours) ────────────────────────────────────
+    # Re-publishes prices for calls ingested on their call date when yfinance
+    # had no future data yet — fills in return_1d / return_3d / return_7d as
+    # each window elapses.
+    scheduler.add_job(
+        _refresh_stale_prices,
+        trigger="interval",
+        hours=2,
+        args=[producer, store],
+        id="price_refresh",
+        max_instances=1,
+        misfire_grace_time=3600,
     )
 
     scheduler.start()
@@ -339,7 +495,7 @@ def main() -> None:
     # ── HTTP trigger API (Flask owns the main thread) ─────────────────────────
     # Bind ingest_one with all shared objects so the API only needs the ticker.
     _ingest_one = partial(ingest_one, cfg=cfg, edgar=edgar,
-                          producer=producer, store=store, fmp=fmp)
+                          producer=producer, store=store, fmp=fmp, av=av)
 
     app = create_app(_ingest_one)
     logger.info("HTTP trigger API listening on :8001")

@@ -45,10 +45,15 @@ def poll(
     edgar: EdgarClient,
     store: ProcessedStore,
     producer: KafkaProducer,
+    on_new_ticker=None,
 ) -> int:
     """
     Fetch the EDGAR 8-K Atom feed and process any new earnings filings.
     Returns the number of transcripts published to Kafka.
+
+    on_new_ticker: optional callable(ticker) invoked after each newly
+    discovered earnings call is published — used to trigger a full
+    historical backfill for that company.
     """
     entries = _fetch_feed_entries(edgar)
     if not entries:
@@ -90,6 +95,11 @@ def poll(
         if _publish(ticker, name, filing_date, acc_no, cik, result["text"], producer, store):
             published += 1
             logger.info("RSS: published %s  %s", ticker, filing_date)
+            if on_new_ticker is not None:
+                try:
+                    on_new_ticker(ticker)
+                except Exception as exc:
+                    logger.warning("RSS: backfill callback error for %s: %s", ticker, exc)
 
     if published:
         logger.info("RSS poll complete — %d new transcript(s) published", published)
