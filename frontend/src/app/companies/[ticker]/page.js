@@ -9,6 +9,7 @@ import ReturnBadge from '@/components/ReturnBadge';
 import ScoreChart from '@/components/ScoreChart';
 import MiniSparkline from '@/components/MiniSparkline';
 import InspectModal from '@/components/InspectModal';
+import PostEarningsProfile from '@/components/PostEarningsProfile';
 
 function fmtDate(str) {
   if (!str) return '—';
@@ -224,6 +225,11 @@ export default function CompanyPage({ params }) {
         </div>
       )}
 
+      {/* ── Post-earnings drift ──────────────────────────────────── */}
+      {history.length >= 2 && (
+        <PostEarningsProfile calls={history} />
+      )}
+
       {/* ── Track record ─────────────────────────────────────────── */}
       {accuracy?.buckets?.length > 0 && (
         <TrackRecord accuracy={accuracy} />
@@ -321,7 +327,7 @@ function CallCard({ item }) {
         <InspectModal item={item} onClose={() => setInspecting(false)} />
       )}
 
-      {item.price_series?.length > 0 && (
+      {item.price_series?.some(p => p.pct != null) && (
         <div className="mb-4">
           <div className="text-[10px] text-slate-600 uppercase tracking-widest mb-2">Price Reaction (7-day window)</div>
           <MiniSparkline
