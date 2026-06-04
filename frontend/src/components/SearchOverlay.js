@@ -6,8 +6,9 @@ import ScoreBar from './ScoreBar';
 import ReturnBadge from './ReturnBadge';
 import MiniSparkline from './MiniSparkline';
 import InspectModal from './InspectModal';
+import PostEarningsProfile from './PostEarningsProfile';
 import { usePortfolio } from '@/context/PortfolioContext';
-import { triggerIngest, getCompanyLatest } from '@/lib/api';
+import { triggerIngest, getCompanyLatest, getCompanyHistory } from '@/lib/api';
 
 function SparkleIcon() {
   return (
@@ -58,10 +59,67 @@ export default function SearchOverlay({ item, onClose }) {
   const pollCancelledRef = useRef(false);
   useEffect(() => () => { pollCancelledRef.current = true; }, []);
 
+  const [history, setHistory]               = useState([]);
+  const [buildingHistory, setBuildingHistory] = useState(false);
+  const historyPollRef                        = useRef(null);
+
+  // Auto-fetch latest call when overlay is opened from a lean item
+  // (e.g. leaderboard / sectors row) that has no single-call data.
+  useEffect(() => {
+    if (!item.ticker) return;
+    if (item.price_series || item.return_1d != null || item.call_date) return;
+    getCompanyLatest(item.ticker)
+      .then(data => { if (data?.confidence_score != null) setFetchedItem({ ...data, has_data: true }); })
+      .catch(() => {});
+  }, [item.ticker]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!item.ticker) return;
+
+    getCompanyHistory(item.ticker).then(data => {
+      const calls = Array.isArray(data) ? data : [];
+      setHistory(calls);
+
+      // Trigger backfill for logged-in users — is_processed makes it a no-op
+      // for fully enriched companies, cheap for all others.
+      if (isLoggedIn) triggerIngest(item.ticker).catch(() => {});
+
+      if (calls.length < 2) {
+        setBuildingHistory(true);
+        let elapsed = 0;
+        historyPollRef.current = setInterval(async () => {
+          elapsed += 10;
+          if (elapsed >= 120) {
+            clearInterval(historyPollRef.current);
+            setBuildingHistory(false);
+            return;
+          }
+          try {
+            const updated = await getCompanyHistory(item.ticker);
+            if (Array.isArray(updated)) {
+              setHistory(updated);
+              if (updated.length >= 2) {
+                clearInterval(historyPollRef.current);
+                setBuildingHistory(false);
+              }
+            }
+          } catch {}
+        }, 10_000);
+      }
+    }).catch(() => setHistory([]));
+
+    return () => { if (historyPollRef.current) clearInterval(historyPollRef.current); };
+  }, [item.ticker, isLoggedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const saved      = watchlist.includes(item.ticker);
   const activeItem = fetchedItem ?? item;
   const hasData    = !!(activeItem.has_data ?? (activeItem.confidence_score != null));
   const isPositive = activeItem.return_7d != null ? activeItem.return_7d >= 0 : null;
+
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  const isPending = activeItem.call_date
+    ? Date.now() - new Date(activeItem.call_date + 'T12:00:00').getTime() < SEVEN_DAYS_MS
+    : false;
 
   const handleFetch = async () => {
     pollCancelledRef.current = false;
@@ -133,7 +191,8 @@ export default function SearchOverlay({ item, onClose }) {
         {/* Panel */}
         <div
           className={clsx(
-            'w-full max-w-lg bg-slate-900 border border-slate-800 border-t-[3px] rounded-2xl overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.7)]',
+            'w-full max-w-2xl bg-slate-900 border border-slate-800 border-t-[3px] rounded-2xl overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.7)]',
+            'max-h-[90vh] overflow-y-auto',
             accentBorder(activeItem.confidence_score, hasData),
           )}
           onClick={(e) => e.stopPropagation()}
@@ -168,7 +227,7 @@ export default function SearchOverlay({ item, onClose }) {
           {hasData ? (
             <>
               {/* ── Sparkline ────────────────────────────────────────── */}
-              {activeItem.price_series?.length > 0 && (
+              {activeItem.price_series?.some(p => p.pct != null) && (
                 <div className="px-3 pb-2">
                   <MiniSparkline data={activeItem.price_series} positive={isPositive} height={100} />
                 </div>
@@ -176,9 +235,9 @@ export default function SearchOverlay({ item, onClose }) {
 
               {/* ── Returns ──────────────────────────────────────────── */}
               <div className="flex gap-8 px-6 py-4 border-t border-slate-800/60">
-                <ReturnBadge value={activeItem.return_1d} label="1d" />
-                <ReturnBadge value={activeItem.return_3d} label="3d" />
-                <ReturnBadge value={activeItem.return_7d} label="7d" />
+                <ReturnBadge value={activeItem.return_1d} label="1d" pending={isPending} />
+                <ReturnBadge value={activeItem.return_3d} label="3d" pending={isPending} />
+                <ReturnBadge value={activeItem.return_7d} label="7d" pending={isPending} />
                 {activeItem.call_date_close != null && (
                   <div className="text-center ml-auto">
                     <div className="text-sm font-semibold font-mono text-slate-300 tabular-nums">
@@ -188,6 +247,23 @@ export default function SearchOverlay({ item, onClose }) {
                   </div>
                 )}
               </div>
+
+              {/* ── Post-earnings drift chart ────────────────────────── */}
+              {history.length >= 2 ? (
+                <div className="px-4 pt-2 pb-2">
+                  <PostEarningsProfile calls={history} showCurrentStats={false} />
+                </div>
+              ) : buildingHistory ? (
+                <div className="flex items-start gap-3 px-6 py-4 border-t border-slate-800/60">
+                  <div className="w-4 h-4 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-slate-200">Building call history</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Fetching historical earnings calls for {item.ticker} — the drift chart will appear here once enough data has been processed.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
 
               {/* ── CEO Confidence + Key Phrases ─────────────────────── */}
               <div className="flex flex-col gap-3 px-6 py-4 border-t border-slate-800/60">
@@ -272,13 +348,7 @@ export default function SearchOverlay({ item, onClose }) {
           {/* ── Footer CTAs ─────────────────────────────────────────── */}
           <div className="flex flex-col gap-2 px-6 py-4 border-t border-slate-800/60 bg-slate-900/60">
             <div className="flex items-center justify-between gap-3">
-              <Link
-                href={`/companies/${item.ticker}`}
-                onClick={onClose}
-                className="text-sm text-cyan-400 hover:text-cyan-300 transition-colors font-medium"
-              >
-                {hasData ? 'View full history →' : 'View company page →'}
-              </Link>
+              <div />
 
               <div className="flex items-center gap-2">
                 {hasData && (

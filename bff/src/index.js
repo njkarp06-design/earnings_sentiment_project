@@ -33,6 +33,7 @@ app.use('/pulse',       require('./routes/pulse'));
 app.use('/companies',   require('./routes/companies'));
 app.use('/prices',      require('./routes/prices'));
 app.use('/leaderboard', require('./routes/leaderboard'));
+app.use('/sectors',     require('./routes/sectors'));
 app.use('/calendar',    require('./routes/calendar'));
 
 // ── 404 handler ──────────────────────────────────────────────────────────────

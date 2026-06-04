@@ -11,10 +11,10 @@ import PulseBar from '@/components/PulseBar';
 
 function getSectionKey(callDate) {
   if (!callDate) return 'earlier';
-  const today   = new Date().toISOString().slice(0, 10);
+  const callMs  = new Date(callDate + 'T12:00:00').getTime();
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  if (callDate >= today)    return 'live';
-  if (callDate >= weekAgo)  return 'week';
+  if (Date.now() - callMs < 24 * 60 * 60 * 1000) return 'live';
+  if (callDate >= weekAgo) return 'week';
   return 'earlier';
 }
 

@@ -98,5 +98,24 @@ class ProcessedStore:
             logger.warning("Company universe seed failed: %s", exc)
             return 0
 
+    def get_stale_price_records(self, min_age_days: int = 1) -> list:
+        """
+        Return PriceReaction records where return_7d is still null but the call
+        is old enough that price data should now be available from yfinance.
+        min_age_days=1 catches everything from yesterday onward; caller decides
+        how far back to look.
+        """
+        from datetime import datetime, timedelta
+        cutoff = (datetime.utcnow() - timedelta(days=min_age_days)).strftime("%Y-%m-%d")
+        db = self._client.get_default_database()
+        return list(db.price_reactions.find(
+            {
+                "return_7d": None,
+                "call_date": {"$lte": cutoff},
+                "ticker":    {"$exists": True, "$ne": None},
+            },
+            {"ticker": 1, "call_date": 1, "filing_id": 1, "_id": 0},
+        ))
+
     def close(self) -> None:
         self._client.close()

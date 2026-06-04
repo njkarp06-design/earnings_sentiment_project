@@ -83,7 +83,9 @@ export const removeFromPortfolio = (ticker) =>
 export const getSuggestions = () =>
   apiFetch('/suggestions', { headers: authHeaders() });
 
-export const getPulse = () => apiFetch('/pulse');
+export const getPulse       = () => apiFetch('/pulse');
+export const getSectors     = () => apiFetch('/sectors');
+export const getSectorDetail = (sector) => apiFetch(`/sectors/${encodeURIComponent(sector)}`);
 
 export const getCompanyLatest = (ticker) =>
   apiFetch(`/companies/${ticker}/latest`);

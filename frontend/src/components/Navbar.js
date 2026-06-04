@@ -56,6 +56,7 @@ export default function Navbar() {
         <div className="flex items-center gap-6">
           {navLink('/', 'Feed')}
           {navLink('/leaderboard', 'Leaderboard')}
+          {navLink('/sectors', 'Sectors')}
           {navLink('/calendar', 'Calendar')}
           {authed && navLink('/portfolio', 'Portfolio')}
 

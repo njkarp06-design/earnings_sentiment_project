@@ -107,26 +107,58 @@ class EdgarClient:
 
     def get_recent_8k_filings(self, cik: str, since: datetime) -> List[Dict]:
         """
-        Return a list of dicts with keys accession_number and filing_date
-        for all 8-K filings since `since`.
+        Return all 8-K filings since `since`, paginating through EDGAR's full
+        history (recent batch + any archived batches in filings.files).
         """
         url = f"{_DATA_BASE}/submissions/CIK{cik}.json"
         data = self._get(url).json()
-        recent = data["filings"]["recent"]
 
+        results = self._collect_8k_from_batch(data["filings"]["recent"], since)
+
+        # Paginate archived batches (EDGAR moves older filings here).
+        # Batches are returned newest-first, so stop as soon as a batch is
+        # entirely before `since` — no earlier batch can have newer filings.
+        for file_ref in data["filings"].get("files", []):
+            batch_url = f"{_DATA_BASE}/submissions/{file_ref['name']}"
+            try:
+                batch = self._get(batch_url).json()
+            except Exception as exc:
+                logger.warning("Could not fetch filing batch %s: %s", file_ref["name"], exc)
+                continue
+            batch_results = self._collect_8k_from_batch(batch, since)
+            results.extend(batch_results)
+            # Early-exit: if the newest filing in this batch predates `since`
+            # then all remaining (older) batches will too.
+            dates = batch.get("filingDate") or []
+            if dates:
+                try:
+                    if datetime.strptime(dates[0], "%Y-%m-%d") < since:
+                        break
+                except ValueError:
+                    pass
+
+        return results
+
+    def _collect_8k_from_batch(self, recent: dict, since: datetime) -> List[Dict]:
         results = []
-        for i, form in enumerate(recent["form"]):
+        forms      = recent.get("form", [])
+        dates      = recent.get("filingDate", [])
+        accessions = recent.get("accessionNumber", [])
+        for i, form in enumerate(forms):
             if form not in ("8-K", "8-K/A"):
                 continue
-            filing_date = datetime.strptime(recent["filingDate"][i], "%Y-%m-%d")
+            if i >= len(dates) or i >= len(accessions):
+                continue
+            try:
+                filing_date = datetime.strptime(dates[i], "%Y-%m-%d")
+            except (ValueError, TypeError):
+                continue
             if filing_date < since:
                 continue
-            results.append(
-                {
-                    "accession_number": recent["accessionNumber"][i],
-                    "filing_date": recent["filingDate"][i],
-                }
-            )
+            results.append({
+                "accession_number": accessions[i],
+                "filing_date": dates[i],
+            })
         return results
 
     def fetch_transcript(self, cik: str, accession_number: str) -> Optional[Dict]:
