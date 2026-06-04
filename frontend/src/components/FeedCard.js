@@ -163,7 +163,7 @@ export default function FeedCard({ item, showNextCall = false }) {
         </div>
 
         {/* ── 7-day price sparkline ────────────────────────────── */}
-        {item.price_series?.length > 0 && (
+        {item.price_series?.some(p => p.pct != null) && (
           <div className="px-2 pb-1">
             <MiniSparkline data={item.price_series} positive={isPositive} height={64} />
           </div>
@@ -175,6 +175,35 @@ export default function FeedCard({ item, showNextCall = false }) {
           <ReturnBadge value={item.return_3d} label="3d" pending={item.pending} />
           <ReturnBadge value={item.return_7d} label="7d" pending={item.pending} />
         </div>
+
+        {/* ── Historical context ──────────────────────────────── */}
+        {(item.hist_avg_7d != null || item.hist_win_rate != null) && (
+          <div className="flex items-center gap-3 px-5 py-2.5 border-t border-slate-800/40">
+            <span className="text-[10px] text-slate-600 uppercase tracking-widest shrink-0">Hist avg</span>
+            {item.hist_avg_7d != null && (
+              <span className={`text-xs font-mono font-semibold tabular-nums ${
+                item.hist_avg_7d >= 0 ? 'text-emerald-400' : 'text-red-400'
+              }`}>
+                {item.hist_avg_7d >= 0 ? '+' : ''}{item.hist_avg_7d.toFixed(1)}%
+              </span>
+            )}
+            {item.hist_avg_7d != null && item.hist_win_rate != null && (
+              <span className="text-slate-700">·</span>
+            )}
+            {item.hist_win_rate != null && (
+              <span className={`text-xs font-mono tabular-nums ${
+                item.hist_win_rate >= 0.5 ? 'text-emerald-400' : 'text-red-400'
+              }`}>
+                {Math.round(item.hist_win_rate * 100)}% win
+              </span>
+            )}
+            {item.hist_call_count > 0 && (
+              <span className="text-[10px] text-slate-700 font-mono ml-auto">
+                {item.hist_call_count} call{item.hist_call_count !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* ── CEO confidence + key phrases ─────────────────────── */}
         <div className="flex flex-col gap-3 px-5 pt-3 pb-3 border-t border-slate-800/60">
