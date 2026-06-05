@@ -113,15 +113,19 @@ def _fmp_scan(
     skip_tickers: Set[str],
 ) -> None:
     """
-    For tickers EDGAR didn't find anything for, query FMP.
-    skip_tickers is the set of tickers already covered by EDGAR this run.
+    Fetch transcripts from FMP for all tickers not in skip_tickers.
+
+    FMP archives structured transcripts going back many years regardless of
+    whether EDGAR has a matching 8-K exhibit.  Callers pass skip_tickers=set()
+    to fetch the full history for every ticker; the is_processed and
+    has_price_reaction_for_date guards prevent cross-source duplicates.
     """
     targets = [t for t in tickers if t not in skip_tickers]
     if not targets:
-        logger.info("FMP: EDGAR covered all tickers — no fallback needed")
+        logger.debug("FMP: all tickers excluded by skip_tickers — nothing to scan")
         return
 
-    logger.info("FMP: fallback scan for %d tickers: %s", len(targets), targets)
+    logger.info("FMP: scanning %d ticker(s) for historical + recent transcripts", len(targets))
 
     for ticker in targets:
         available = fmp.list_available(ticker)
@@ -278,9 +282,13 @@ def run_ingest_job(
     edgar_found = _edgar_scan(all_tickers, edgar, producer, store, since)
     logger.info("EDGAR pass complete | transcripts found for: %s", sorted(edgar_found))
 
-    # Pass 2: FMP fallback (only if key is configured)
+    # Pass 2: FMP — scan all tickers, not just EDGAR misses.
+    # EDGAR only surfaces 8-K exhibits that pass the transcript detector; FMP
+    # has structured archives for every quarter going back many years.  We pass
+    # skip_tickers=set() so every ticker gets its full FMP history, relying on
+    # the is_processed and has_price_reaction_for_date guards for dedup.
     if fmp:
-        _fmp_scan(all_tickers, fmp, producer, store, since, skip_tickers=edgar_found)
+        _fmp_scan(all_tickers, fmp, producer, store, since, skip_tickers=set())
     elif cfg.fmp_api_key == "":
         logger.info("FMP disabled — set FMP_API_KEY to enable fallback")
 
@@ -311,7 +319,13 @@ def _backfill_ticker(
         logger.info("Backfill: %s — full history scan started", ticker)
         try:
             found = _edgar_scan([ticker], edgar, producer, store, since)
-            if not found and fmp:
+            # Always run FMP regardless of EDGAR result — EDGAR covers 8-K text
+            # exhibits only; FMP has structured transcript archives going back
+            # many years.  The is_processed guard prevents re-ingestion of
+            # quarters already fetched.  Pass found as skip_tickers so the
+            # cross-source duplicate check in _fmp_scan can rely on
+            # has_price_reaction_for_date for any dates EDGAR just published.
+            if fmp:
                 _fmp_scan([ticker], fmp, producer, store, since, skip_tickers=set())
             if av:
                 _av_scan([ticker], av, producer, store, n_quarters=4, skip_tickers=found)
@@ -335,9 +349,9 @@ def ingest_one(
 ) -> None:
     """Run an immediate multi-source scan for a single ticker.
 
-    Pass 1 — EDGAR 90-day window  (fast, shows data in the polling window)
-    Pass 2 — FMP fallback          (if key configured)
-    Pass 3 — Alpha Vantage 8 qtrs  (free tier, fills recent history)
+    Pass 1 — EDGAR 90-day window     (fast, surfaces the latest 8-K exhibit)
+    Pass 2 — FMP all available qtrs  (fills recent + older structured quarters)
+    Pass 3 — Alpha Vantage 8 qtrs    (free tier, fills gaps not in FMP)
     Pass 4 — Full historical backfill spawned in background thread
     """
     since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=90)
@@ -348,7 +362,9 @@ def ingest_one(
 
     edgar_found = _edgar_scan([ticker], edgar, producer, store, since)
 
-    if not edgar_found and fmp:
+    # Always run FMP — EDGAR covers only what it found; FMP archives every quarter.
+    # is_processed + has_price_reaction_for_date handle cross-source dedup.
+    if fmp:
         _fmp_scan([ticker], fmp, producer, store, since, skip_tickers=set())
 
     if av:
