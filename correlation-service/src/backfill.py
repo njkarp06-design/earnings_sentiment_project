@@ -8,7 +8,7 @@ data fills in naturally over the week following each call.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .prices import compute_post_call_returns
 from .store import _yfinance_sector
@@ -17,9 +17,22 @@ logger = logging.getLogger(__name__)
 
 
 def backfill_pending_returns(db) -> None:
+    # Also catch records where all returns are filled but price_series is
+    # still null — this happens when the initial yfinance call failed and a
+    # later retry only succeeded for the return values (or for records
+    # correlated before price_series was added to the schema).
+    two_years_ago = (datetime.utcnow() - timedelta(days=730)).strftime("%Y-%m-%d")
+
     pending = list(
         db.price_reactions.find(
-            {"$or": [{"return_1d": None}, {"return_3d": None}, {"return_7d": None}]},
+            {"$or": [
+                {"return_1d": None},
+                {"return_3d": None},
+                {"return_7d": None},
+                # price_series absent/null despite returns being filled.
+                # MongoDB {field: null} matches both explicit null AND missing field.
+                {"price_series": None, "call_date": {"$gte": two_years_ago}},
+            ]},
             {"filing_id": 1, "ticker": 1, "call_date": 1},
         )
     )

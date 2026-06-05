@@ -156,6 +156,32 @@ class ProcessedStore:
             logger.warning("has_price_reaction_for_date check failed for %s %s: %s", ticker, call_date, exc)
             return False
 
+    def get_recent_reaction_tickers(self, lookback_days: int = 90) -> set:
+        """Return tickers that have appeared in price_reactions within the last
+        lookback_days days.
+
+        Used by the periodic ingest job to ensure companies discovered via the
+        RSS feed (which are not in cfg.tickers or any user watchlist) still get
+        re-scanned on every scheduled cycle.  Without this, an RSS-triggered
+        _backfill_ticker daemon thread that is interrupted by a container restart
+        leaves those companies without historical data indefinitely.
+        """
+        from datetime import datetime, timedelta
+        cutoff = (datetime.utcnow() - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+        db = self._client.get_default_database()
+        try:
+            return {
+                doc["ticker"].upper()
+                for doc in db.price_reactions.find(
+                    {"call_date": {"$gte": cutoff}, "ticker": {"$exists": True, "$ne": None}},
+                    {"ticker": 1, "_id": 0},
+                )
+                if doc.get("ticker")
+            }
+        except Exception as exc:
+            logger.warning("Could not fetch recent reaction tickers: %s", exc)
+            return set()
+
     def get_stale_price_records(self, min_age_days: int = 1) -> list:
         """
         Return PriceReaction records where any of return_1d/3d/7d is still null
