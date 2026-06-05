@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 from kafka import KafkaConsumer
 from pymongo import DESCENDING, MongoClient
 
-from .backfill import backfill_pending_returns
+from .backfill import backfill_missing_sectors, backfill_pending_returns
 from .config import Config
 from .notify import notify_portfolio_users
 from .prices import compute_post_call_returns
@@ -52,6 +52,7 @@ def _backfill_loop(mongo_uri: str) -> None:
     db = mongo.earnings_sentiment
     while True:
         try:
+            backfill_missing_sectors(db)
             backfill_pending_returns(db)
         except Exception as exc:
             logger.warning("Backfill run failed: %s", exc)
