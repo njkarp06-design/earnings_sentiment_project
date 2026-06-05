@@ -8,16 +8,29 @@ const TICKER_RE    = /^[A-Z]{1,10}$/;
 
 // GET /companies/:ticker/history
 // All scored+correlated calls for a ticker, newest first.
+// Deduplicates by call_date so EDGAR and FMP records for the same quarter
+// don't appear as separate entries.
 router.get('/:ticker/history', async (req, res, next) => {
   try {
     const ticker = req.params.ticker.toUpperCase();
     if (!TICKER_RE.test(ticker)) {
       return res.status(400).json({ error: 'Invalid ticker — must be 1–10 uppercase letters' });
     }
-    const items = await PriceReaction
-      .find({ ticker })
-      .sort({ call_date: -1 })
-      .select('-_id -__v');
+    const items = await PriceReaction.aggregate([
+      { $match: { ticker } },
+      // Prefer EDGAR records (real company_name) over FMP fallbacks (ticker-as-name).
+      { $addFields: { _name_quality: { $cond: [{ $ne: ['$company_name', '$ticker'] }, 1, 0] } } },
+      { $sort: { call_date: -1, _name_quality: -1, correlated_at: -1 } },
+      {
+        $group: {
+          _id: '$call_date',
+          doc: { $first: '$$ROOT' },
+        },
+      },
+      { $replaceRoot: { newRoot: '$doc' } },
+      { $sort: { call_date: -1 } },
+      { $project: { _id: 0, __v: 0, _name_quality: 0 } },
+    ]);
     res.json(items);
   } catch (err) {
     next(err);
@@ -26,18 +39,25 @@ router.get('/:ticker/history', async (req, res, next) => {
 
 // GET /companies/:ticker/latest
 // Most recent scored+correlated call for a ticker.
+// Deduplicates by call_date and prefers EDGAR records over FMP fallbacks.
 router.get('/:ticker/latest', async (req, res, next) => {
   try {
     const ticker = req.params.ticker.toUpperCase();
     if (!TICKER_RE.test(ticker)) {
       return res.status(400).json({ error: 'Invalid ticker — must be 1–10 uppercase letters' });
     }
-    const item = await PriceReaction
-      .findOne({ ticker })
-      .sort({ call_date: -1 })
-      .select('-_id -__v');
-    if (!item) return res.status(404).json({ error: `No data found for ${ticker}` });
-    res.json(item);
+    const results = await PriceReaction.aggregate([
+      { $match: { ticker } },
+      { $addFields: { _name_quality: { $cond: [{ $ne: ['$company_name', '$ticker'] }, 1, 0] } } },
+      { $sort: { call_date: -1, _name_quality: -1, correlated_at: -1 } },
+      { $group: { _id: '$call_date', doc: { $first: '$$ROOT' } } },
+      { $replaceRoot: { newRoot: '$doc' } },
+      { $sort: { call_date: -1 } },
+      { $limit: 1 },
+      { $project: { _id: 0, __v: 0, _name_quality: 0 } },
+    ]);
+    if (!results.length) return res.status(404).json({ error: `No data found for ${ticker}` });
+    res.json(results[0]);
   } catch (err) {
     next(err);
   }
@@ -51,9 +71,27 @@ router.get('/:ticker/accuracy', async (req, res, next) => {
     if (!TICKER_RE.test(ticker)) {
       return res.status(400).json({ error: 'Invalid ticker — must be 1–10 uppercase letters' });
     }
-    const items = await PriceReaction
-      .find({ ticker, return_7d: { $ne: null } })
-      .select('confidence_score return_1d return_3d return_7d');
+    // Deduplicate by call_date before bucketing so cross-source duplicates
+    // don't inflate counts or skew averages.
+    const rawItems = await PriceReaction.aggregate([
+      { $match: { ticker, return_7d: { $ne: null } } },
+      { $sort: { correlated_at: -1 } },
+      {
+        $group: {
+          _id: '$call_date',
+          confidence_score: { $first: '$confidence_score' },
+          return_1d:        { $first: '$return_1d' },
+          return_3d:        { $first: '$return_3d' },
+          return_7d:        { $first: '$return_7d' },
+        },
+      },
+    ]);
+    const items = rawItems.map(r => ({
+      confidence_score: r.confidence_score,
+      return_1d: r.return_1d,
+      return_3d: r.return_3d,
+      return_7d: r.return_7d,
+    }));
 
     if (items.length === 0) {
       return res.json({ buckets: [], total: 0 });

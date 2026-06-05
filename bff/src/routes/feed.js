@@ -20,19 +20,50 @@ router.get('/', async (req, res, next) => {
     twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
     query.call_date = { $gte: twelveMonthsAgo.toISOString().slice(0, 10) };
 
-    const items = await PriceReaction
-      .find(query)
-      .sort({ call_date: -1 })
-      .limit(50)
-      .select('-_id filing_id ticker company_name sector call_date confidence_score trend key_phrases model_used return_1d return_3d return_7d call_date_close price_series correlated_at');
+    // Aggregate instead of find so we can deduplicate by (ticker, call_date).
+    // A ticker can have two records for the same date when EDGAR and FMP both
+    // ingest the same call (FMP runs concurrently with EDGAR in the scheduler).
+    // We keep whichever record has a non-null confidence_score; otherwise the
+    // most recent correlated_at wins.
+    const rawItems = await PriceReaction.aggregate([
+      { $match: query },
+      // Rank each record so EDGAR records (real company name) beat FMP records
+      // (ticker-as-name).  Within the same source quality, prefer the most
+      // recently correlated document.
+      {
+        $addFields: {
+          _name_quality: {
+            $cond: [{ $ne: ['$company_name', '$ticker'] }, 1, 0],
+          },
+        },
+      },
+      { $sort: { call_date: -1, _name_quality: -1, correlated_at: -1 } },
+      {
+        $group: {
+          _id: { ticker: '$ticker', call_date: '$call_date' },
+          doc: { $first: '$$ROOT' },
+        },
+      },
+      { $replaceRoot: { newRoot: '$doc' } },
+      { $sort: { call_date: -1 } },
+      { $limit: 50 },
+      { $project: { _id: 0, __v: 0, _name_quality: 0 } },
+    ]);
+    const items = rawItems;
 
-    // Single aggregation to get historical stats for all tickers in one round-trip
+    // Historical stats — deduplicate by (ticker, call_date) first so that any
+    // EDGAR+FMP duplicate records for the same call don't inflate counts.
     const tickers = [...new Set(items.map(i => i.ticker))];
     const histStats = tickers.length
       ? await PriceReaction.aggregate([
           { $match: { ticker: { $in: tickers }, return_7d: { $ne: null } } },
+          { $sort: { correlated_at: -1 } },
           { $group: {
-            _id:   '$ticker',
+            _id:       { ticker: '$ticker', call_date: '$call_date' },
+            return_7d: { $first: '$return_7d' },
+          }},
+          { $group: {
+            _id:   '$_id.ticker',
             avg7d: { $avg: '$return_7d' },
             total: { $sum: 1 },
             wins:  { $sum: { $cond: [{ $gt: ['$return_7d', 0] }, 1, 0] } },

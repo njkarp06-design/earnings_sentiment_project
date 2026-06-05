@@ -41,20 +41,62 @@ class ProcessedStore:
             logger.warning("Could not fetch watchlist tickers from MongoDB: %s", exc)
             return set()
 
-    def upsert_company(self, ticker: str, name: str, sector: Optional[str] = None) -> None:
-        """Keep the companies collection current with ticker / name / optional sector."""
+    def upsert_company(
+        self,
+        ticker: str,
+        name: str,
+        sector: Optional[str] = None,
+        prefer_existing_name: bool = False,
+    ) -> None:
+        """Keep the companies collection current with ticker / name / optional sector.
+
+        prefer_existing_name=True uses $setOnInsert for name so that an
+        authoritative name already in the collection (e.g. from EDGAR) is never
+        overwritten by a fallback value such as the raw ticker symbol.  Set this
+        when the caller cannot guarantee the name is authoritative (FMP, AV).
+        """
         try:
             db = self._client.get_default_database()
-            update: dict = {"ticker": ticker.upper(), "name": name}
+            set_fields: dict = {"ticker": ticker.upper()}
             if sector:
-                update["sector"] = sector
-            db.companies.update_one(
-                {"ticker": ticker.upper()},
-                {"$set": update},
-                upsert=True,
-            )
+                set_fields["sector"] = sector
+
+            if prefer_existing_name:
+                db.companies.update_one(
+                    {"ticker": ticker.upper()},
+                    {"$set": set_fields, "$setOnInsert": {"name": name}},
+                    upsert=True,
+                )
+            else:
+                set_fields["name"] = name
+                db.companies.update_one(
+                    {"ticker": ticker.upper()},
+                    {"$set": set_fields},
+                    upsert=True,
+                )
         except Exception as exc:
             logger.warning("Failed to upsert company %s: %s", ticker, exc)
+
+    def get_company_name(self, ticker: str) -> Optional[str]:
+        """Return the stored authoritative name for ticker, or None.
+
+        Used by FMP/AV scans to include a real company name in published
+        transcripts when EDGAR has already populated the companies collection,
+        rather than falling back to the raw ticker symbol.
+        """
+        try:
+            db = self._client.get_default_database()
+            doc = db.companies.find_one(
+                {"ticker": ticker.upper()},
+                {"name": 1},
+            )
+            stored = doc.get("name") if doc else None
+            # Only return if it's an authoritative name, not just the ticker
+            if stored and stored.upper() != ticker.upper():
+                return stored
+            return None
+        except Exception:
+            return None
 
     def needs_company_seed(self) -> bool:
         """True when the companies collection has fewer than 1 000 entries.
@@ -116,17 +158,20 @@ class ProcessedStore:
 
     def get_stale_price_records(self, min_age_days: int = 1) -> list:
         """
-        Return PriceReaction records where return_7d is still null but the call
-        is old enough that price data should now be available from yfinance.
-        min_age_days=1 catches everything from yesterday onward; caller decides
-        how far back to look.
+        Return PriceReaction records where any of return_1d/3d/7d is still null
+        but the call is old enough that price data should now be available.
+        min_age_days=1 catches everything from yesterday onward.
         """
         from datetime import datetime, timedelta
         cutoff = (datetime.utcnow() - timedelta(days=min_age_days)).strftime("%Y-%m-%d")
         db = self._client.get_default_database()
         return list(db.price_reactions.find(
             {
-                "return_7d": None,
+                "$or": [
+                    {"return_1d": None},
+                    {"return_3d": None},
+                    {"return_7d": None},
+                ],
                 "call_date": {"$lte": cutoff},
                 "ticker":    {"$exists": True, "$ne": None},
             },
