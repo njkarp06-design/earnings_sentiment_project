@@ -4,7 +4,6 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
-  ReferenceLine,
   Tooltip,
 } from 'recharts';
 
@@ -26,7 +25,7 @@ export default function MiniSparkline({ data, positive, height = 64 }) {
   const uid = useId().replace(/:/g, '');
 
   if (!data?.length) return null;
-  if (!data.some(p => p.pct != null)) return null;
+  if (data.filter(p => p.pct != null).length < 3) return null;
 
   // null if return_7d unknown → neutral slate color
   const color =
@@ -45,14 +44,6 @@ export default function MiniSparkline({ data, positive, height = 64 }) {
             <stop offset="100%" stopColor={color} stopOpacity={0} />
           </linearGradient>
         </defs>
-
-        {/* Baseline — makes it immediately obvious if the stock dipped */}
-        <ReferenceLine
-          y={0}
-          stroke="#475569"
-          strokeDasharray="3 2"
-          strokeWidth={1}
-        />
 
         <Tooltip
           content={<SparklineTooltip />}

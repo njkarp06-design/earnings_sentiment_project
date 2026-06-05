@@ -84,12 +84,12 @@ export default function SearchOverlay({ item, onClose }) {
       // for fully enriched companies, cheap for all others.
       if (isLoggedIn) triggerIngest(item.ticker).catch(() => {});
 
-      if (calls.length < 2) {
+      if (calls.length === 0) {
         setBuildingHistory(true);
         let elapsed = 0;
         historyPollRef.current = setInterval(async () => {
           elapsed += 10;
-          if (elapsed >= 120) {
+          if (elapsed >= 60) {
             clearInterval(historyPollRef.current);
             setBuildingHistory(false);
             return;
@@ -98,7 +98,7 @@ export default function SearchOverlay({ item, onClose }) {
             const updated = await getCompanyHistory(item.ticker);
             if (Array.isArray(updated)) {
               setHistory(updated);
-              if (updated.length >= 2) {
+              if (updated.length >= 1) {
                 clearInterval(historyPollRef.current);
                 setBuildingHistory(false);
               }
@@ -227,7 +227,7 @@ export default function SearchOverlay({ item, onClose }) {
           {hasData ? (
             <>
               {/* ── Sparkline ────────────────────────────────────────── */}
-              {activeItem.price_series?.some(p => p.pct != null) && (
+              {activeItem.price_series?.filter(p => p.pct != null).length >= 3 && (
                 <div className="px-3 pb-2">
                   <MiniSparkline data={activeItem.price_series} positive={isPositive} height={100} />
                 </div>
@@ -249,7 +249,7 @@ export default function SearchOverlay({ item, onClose }) {
               </div>
 
               {/* ── Post-earnings drift chart ────────────────────────── */}
-              {history.length >= 2 ? (
+              {history.length >= 1 ? (
                 <div className="px-4 pt-2 pb-2">
                   <PostEarningsProfile calls={history} showCurrentStats={false} />
                 </div>
