@@ -18,7 +18,9 @@ router.get('/:ticker/history', async (req, res, next) => {
     }
     const items = await PriceReaction.aggregate([
       { $match: { ticker } },
-      { $sort: { call_date: -1, correlated_at: -1 } },
+      // Prefer EDGAR records (real company_name) over FMP fallbacks (ticker-as-name).
+      { $addFields: { _name_quality: { $cond: [{ $ne: ['$company_name', '$ticker'] }, 1, 0] } } },
+      { $sort: { call_date: -1, _name_quality: -1, correlated_at: -1 } },
       {
         $group: {
           _id: '$call_date',
@@ -27,7 +29,7 @@ router.get('/:ticker/history', async (req, res, next) => {
       },
       { $replaceRoot: { newRoot: '$doc' } },
       { $sort: { call_date: -1 } },
-      { $project: { _id: 0, __v: 0 } },
+      { $project: { _id: 0, __v: 0, _name_quality: 0 } },
     ]);
     res.json(items);
   } catch (err) {
@@ -37,18 +39,25 @@ router.get('/:ticker/history', async (req, res, next) => {
 
 // GET /companies/:ticker/latest
 // Most recent scored+correlated call for a ticker.
+// Deduplicates by call_date and prefers EDGAR records over FMP fallbacks.
 router.get('/:ticker/latest', async (req, res, next) => {
   try {
     const ticker = req.params.ticker.toUpperCase();
     if (!TICKER_RE.test(ticker)) {
       return res.status(400).json({ error: 'Invalid ticker — must be 1–10 uppercase letters' });
     }
-    const item = await PriceReaction
-      .findOne({ ticker })
-      .sort({ call_date: -1 })
-      .select('-_id -__v');
-    if (!item) return res.status(404).json({ error: `No data found for ${ticker}` });
-    res.json(item);
+    const results = await PriceReaction.aggregate([
+      { $match: { ticker } },
+      { $addFields: { _name_quality: { $cond: [{ $ne: ['$company_name', '$ticker'] }, 1, 0] } } },
+      { $sort: { call_date: -1, _name_quality: -1, correlated_at: -1 } },
+      { $group: { _id: '$call_date', doc: { $first: '$$ROOT' } } },
+      { $replaceRoot: { newRoot: '$doc' } },
+      { $sort: { call_date: -1 } },
+      { $limit: 1 },
+      { $project: { _id: 0, __v: 0, _name_quality: 0 } },
+    ]);
+    if (!results.length) return res.status(404).json({ error: `No data found for ${ticker}` });
+    res.json(results[0]);
   } catch (err) {
     next(err);
   }

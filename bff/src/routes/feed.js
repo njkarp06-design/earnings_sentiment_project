@@ -27,7 +27,17 @@ router.get('/', async (req, res, next) => {
     // most recent correlated_at wins.
     const rawItems = await PriceReaction.aggregate([
       { $match: query },
-      { $sort: { call_date: -1, correlated_at: -1 } },
+      // Rank each record so EDGAR records (real company name) beat FMP records
+      // (ticker-as-name).  Within the same source quality, prefer the most
+      // recently correlated document.
+      {
+        $addFields: {
+          _name_quality: {
+            $cond: [{ $ne: ['$company_name', '$ticker'] }, 1, 0],
+          },
+        },
+      },
+      { $sort: { call_date: -1, _name_quality: -1, correlated_at: -1 } },
       {
         $group: {
           _id: { ticker: '$ticker', call_date: '$call_date' },
@@ -37,11 +47,7 @@ router.get('/', async (req, res, next) => {
       { $replaceRoot: { newRoot: '$doc' } },
       { $sort: { call_date: -1 } },
       { $limit: 50 },
-      {
-        $project: {
-          _id: 0, __v: 0,
-        },
-      },
+      { $project: { _id: 0, __v: 0, _name_quality: 0 } },
     ]);
     const items = rawItems;
 
