@@ -98,6 +98,22 @@ class ProcessedStore:
             logger.warning("Company universe seed failed: %s", exc)
             return 0
 
+    def has_price_reaction_for_date(self, ticker: str, call_date: str) -> bool:
+        """True if a price_reaction already exists for this ticker on this call date.
+
+        Used by FMP scan to avoid creating duplicate records for quarters that
+        EDGAR already published (EDGAR and FMP use different filing_id keys so
+        the is_processed guard does not catch cross-source duplicates).
+        """
+        try:
+            db = self._client.get_default_database()
+            return db.price_reactions.find_one(
+                {"ticker": ticker.upper(), "call_date": call_date}
+            ) is not None
+        except Exception as exc:
+            logger.warning("has_price_reaction_for_date check failed for %s %s: %s", ticker, call_date, exc)
+            return False
+
     def get_stale_price_records(self, min_age_days: int = 1) -> list:
         """
         Return PriceReaction records where return_7d is still null but the call
