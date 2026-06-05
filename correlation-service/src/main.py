@@ -48,6 +48,13 @@ TOPIC_PRICES = "raw-prices"
 # ── Background: daily backfill of pending returns ────────────────────────────
 
 def _backfill_loop(mongo_uri: str) -> None:
+    """Fill in pending 1d/3d/7d returns and price_series every 4 h.
+
+    Running every 4 h means sparklines and return badges update within a few
+    hours of each trading-day close rather than waiting up to 24 h.
+    Sector backfill is cheap (uses a static map + cached DB values) so it
+    runs on every cycle too.
+    """
     mongo = MongoClient(mongo_uri)
     db = mongo.earnings_sentiment
     while True:
@@ -56,7 +63,7 @@ def _backfill_loop(mongo_uri: str) -> None:
             backfill_pending_returns(db)
         except Exception as exc:
             logger.warning("Backfill run failed: %s", exc)
-        time.sleep(24 * 3600)
+        time.sleep(4 * 3600)
 
 
 # ── Background: raw-prices → MongoDB raw_prices ───────────────────────────────
@@ -92,7 +99,7 @@ def _raw_prices_loop(bootstrap_servers: str, mongo_uri: str) -> None:
 def main() -> None:
     cfg = Config.from_env()
 
-    # Background: daily backfill of pending 1d/3d/7d returns
+    # Background: 4-hourly backfill of pending 1d/3d/7d returns
     threading.Thread(
         target=_backfill_loop,
         args=(cfg.mongo_uri,),
