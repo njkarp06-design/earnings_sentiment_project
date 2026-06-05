@@ -116,17 +116,20 @@ class ProcessedStore:
 
     def get_stale_price_records(self, min_age_days: int = 1) -> list:
         """
-        Return PriceReaction records where return_7d is still null but the call
-        is old enough that price data should now be available from yfinance.
-        min_age_days=1 catches everything from yesterday onward; caller decides
-        how far back to look.
+        Return PriceReaction records where any of return_1d/3d/7d is still null
+        but the call is old enough that price data should now be available.
+        min_age_days=1 catches everything from yesterday onward.
         """
         from datetime import datetime, timedelta
         cutoff = (datetime.utcnow() - timedelta(days=min_age_days)).strftime("%Y-%m-%d")
         db = self._client.get_default_database()
         return list(db.price_reactions.find(
             {
-                "return_7d": None,
+                "$or": [
+                    {"return_1d": None},
+                    {"return_3d": None},
+                    {"return_7d": None},
+                ],
                 "call_date": {"$lte": cutoff},
                 "ticker":    {"$exists": True, "$ne": None},
             },
