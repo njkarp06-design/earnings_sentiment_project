@@ -151,6 +151,13 @@ def _fmp_scan(
 
             # FMP date field: "2024-02-01 17:00:00" → "2024-02-01"
             call_date = transcript["date"][:10]
+
+            # Skip quarters already stored by EDGAR — they use a different filing_id
+            # so is_processed would not catch the cross-source duplicate.
+            if store.has_price_reaction_for_date(ticker, call_date):
+                store.mark_processed(filing_id)
+                continue
+
             store.upsert_company(ticker, ticker)  # FMP has no company name in the transcript
 
             _publish_transcript_and_prices(

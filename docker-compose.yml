@@ -119,7 +119,7 @@ services:
       MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
       EDGAR_USER_AGENT: ${EDGAR_USER_AGENT:-EarningsSentimentResearch contact@example.com}
       TICKERS: ${TICKERS:-AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,JPM,JNJ,XOM}
-      LOOKBACK_DAYS: ${LOOKBACK_DAYS:-30}
+      LOOKBACK_DAYS: ${LOOKBACK_DAYS:-730}
       SCHEDULE_INTERVAL_HOURS: ${SCHEDULE_INTERVAL_HOURS:-2}
       FMP_API_KEY: ${FMP_API_KEY:-}
     env_file:
