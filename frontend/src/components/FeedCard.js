@@ -163,7 +163,7 @@ export default function FeedCard({ item, showNextCall = false }) {
         </div>
 
         {/* ── 7-day price sparkline ────────────────────────────── */}
-        {item.price_series?.some(p => p.pct != null) && (
+        {item.price_series?.filter(p => p.pct != null).length >= 3 && (
           <div className="px-2 pb-1">
             <MiniSparkline data={item.price_series} positive={isPositive} height={64} />
           </div>
