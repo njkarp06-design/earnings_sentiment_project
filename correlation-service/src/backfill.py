@@ -11,6 +11,7 @@ import logging
 from datetime import datetime, timezone
 
 from .prices import compute_post_call_returns
+from .store import _yfinance_sector
 
 logger = logging.getLogger(__name__)
 
@@ -63,3 +64,49 @@ def backfill_pending_returns(db) -> None:
         filled += 1
 
     logger.info("Backfill complete: %d/%d docs updated", filled, len(pending))
+
+
+def backfill_missing_sectors(db) -> None:
+    """Populate sector on price_reactions where it is null/missing, using yfinance."""
+    pipeline = [
+        {"$match": {"sector": {"$in": [None, ""]}}},
+        {"$group": {"_id": "$ticker"}},
+    ]
+    tickers = [row["_id"] for row in db.price_reactions.aggregate(pipeline) if row["_id"]]
+
+    if not tickers:
+        logger.info("Sector backfill: nothing to fill")
+        return
+
+    logger.info("Sector backfill: %d ticker(s) with missing sector", len(tickers))
+    filled = 0
+
+    for ticker in tickers:
+        # Use cached value in companies first, avoid redundant yfinance calls
+        company_doc = db.companies.find_one({"ticker": ticker.upper()}, {"sector": 1})
+        sector = (company_doc.get("sector") or None) if company_doc else None
+
+        if not sector:
+            sector = _yfinance_sector(ticker)
+            if sector:
+                db.companies.update_one(
+                    {"ticker": ticker.upper()},
+                    {"$set": {"sector": sector}},
+                    upsert=True,
+                )
+
+        if not sector:
+            logger.debug("Sector backfill: no sector found for %s", ticker)
+            continue
+
+        result = db.price_reactions.update_many(
+            {"ticker": ticker, "sector": {"$in": [None, ""]}},
+            {"$set": {"sector": sector}},
+        )
+        logger.info(
+            "Sector backfill ✓ %-6s → %-30s (%d doc(s))",
+            ticker, sector, result.modified_count,
+        )
+        filled += 1
+
+    logger.info("Sector backfill complete: %d/%d ticker(s) resolved", filled, len(tickers))
