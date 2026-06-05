@@ -268,9 +268,14 @@ def run_ingest_job(
     store: ProcessedStore,
     fmp: Optional[FmpClient],
 ) -> None:
-    # Merge static env tickers with every user's portfolio watchlist
+    # Merge static env tickers with every user's portfolio watchlist, plus any
+    # company seen in price_reactions within the last 90 days.  The last set
+    # catches RSS-discovered companies whose one-time _backfill_ticker daemon
+    # thread was interrupted (e.g. by a container restart) so they are retried
+    # on every scheduled cycle instead of silently losing their history.
     watchlist_tickers = store.get_watchlist_tickers()
-    all_tickers = sorted(set(cfg.tickers) | watchlist_tickers)
+    recent_tickers    = store.get_recent_reaction_tickers(lookback_days=90)
+    all_tickers = sorted(set(cfg.tickers) | watchlist_tickers | recent_tickers)
     new_from_watchlist = watchlist_tickers - set(cfg.tickers)
 
     since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
