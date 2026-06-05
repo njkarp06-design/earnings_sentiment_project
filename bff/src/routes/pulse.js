@@ -7,6 +7,17 @@ router.get('/', async (_req, res, next) => {
   try {
     const rows = await PriceReaction.aggregate([
       { $match: { sector: { $exists: true, $ne: null } } },
+      // Deduplicate by (ticker, call_date) before aggregating by sector so that
+      // EDGAR+FMP duplicates for the same call don't inflate count or skew averages.
+      { $sort: { correlated_at: -1 } },
+      {
+        $group: {
+          _id:              { ticker: '$ticker', call_date: '$call_date' },
+          sector:           { $first: '$sector' },
+          confidence_score: { $first: '$confidence_score' },
+          return_7d:        { $first: '$return_7d' },
+        },
+      },
       {
         $group: {
           _id:            '$sector',
