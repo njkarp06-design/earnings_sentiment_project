@@ -1,12 +1,16 @@
 """
 Ingestor service — Phase 1.
 
-Two-pass strategy per nightly run:
-  Pass 1 — EDGAR: scan recent 8-K filings for earnings call transcripts.
-  Pass 2 — FMP:   for any ticker that EDGAR found nothing for, fall back to
-                  Financial Modeling Prep (requires FMP_API_KEY in env).
+Three-pass strategy per scheduled run:
+  Pass 1 — EDGAR: scan 8-K filings for earnings call transcripts.
+  Pass 2 — FMP:   fetch structured transcripts for ALL tickers (not just
+                  EDGAR misses).  FMP archives many years of quarterly data
+                  regardless of 8-K exhibit availability.  Cross-source
+                  deduplication is handled by is_processed + has_price_reaction_for_date.
+  Pass 3 — Alpha Vantage (on-demand only): 25 req/day free tier, used only
+                  for single-ticker ingest_one calls.
 
-Both passes publish to the same Kafka topics:
+All passes publish to the same Kafka topics:
   raw-transcripts  →  scoring-service   (Phase 2)
   raw-prices       →  correlation-service (Phase 3)
 """
@@ -162,10 +166,15 @@ def _fmp_scan(
                 store.mark_processed(filing_id)
                 continue
 
-            store.upsert_company(ticker, ticker)  # FMP has no company name in the transcript
+            # Prefer the authoritative name from EDGAR (already in the companies
+            # collection) over falling back to the ticker symbol.  Use
+            # prefer_existing_name=True so this call never overwrites a real name
+            # that EDGAR has already set.
+            real_name = store.get_company_name(ticker) or ticker
+            store.upsert_company(ticker, real_name, prefer_existing_name=True)
 
             _publish_transcript_and_prices(
-                ticker, ticker, call_date, filing_id, "",
+                ticker, real_name, call_date, filing_id, "",
                 transcript["content"], producer, store,
                 source="fmp",
             )
@@ -198,9 +207,10 @@ def _av_scan(
             filing_id = t["filing_id"]
             if store.is_processed(filing_id):
                 continue
-            store.upsert_company(ticker, ticker)
+            real_name = store.get_company_name(ticker) or ticker
+            store.upsert_company(ticker, real_name, prefer_existing_name=True)
             _publish_transcript_and_prices(
-                ticker, ticker, t["call_date"], filing_id, "",
+                ticker, real_name, t["call_date"], filing_id, "",
                 t["text"], producer, store, source="alpha_vantage",
             )
 
@@ -321,10 +331,9 @@ def _backfill_ticker(
             found = _edgar_scan([ticker], edgar, producer, store, since)
             # Always run FMP regardless of EDGAR result — EDGAR covers 8-K text
             # exhibits only; FMP has structured transcript archives going back
-            # many years.  The is_processed guard prevents re-ingestion of
-            # quarters already fetched.  Pass found as skip_tickers so the
-            # cross-source duplicate check in _fmp_scan can rely on
-            # has_price_reaction_for_date for any dates EDGAR just published.
+            # many years.  We pass skip_tickers=set() so FMP processes all
+            # quarters; is_processed and has_price_reaction_for_date handle
+            # cross-source deduplication.
             if fmp:
                 _fmp_scan([ticker], fmp, producer, store, since, skip_tickers=set())
             if av:
@@ -382,13 +391,15 @@ _REFRESH_DELAY = 2.0  # seconds between yfinance calls within a batch
 
 def _refresh_stale_prices(producer: KafkaProducer, store: ProcessedStore) -> None:
     """
-    Re-fetch and re-publish prices for PriceReaction documents that still have
-    null return_7d despite being old enough for the full window to have closed.
+    Re-fetch and re-publish raw OHLCV prices for PriceReaction documents that
+    still have any null return (1d/3d/7d) despite being old enough for price
+    data to be available.
 
-    This covers the common case where a transcript was ingested on its call date
-    — yfinance had no future price data yet, so D+1/D+3/D+7 returns were written
-    as null.  Re-publishing the now-available prices causes the correlation
-    service to upsert updated returns into the existing document.
+    This covers transcripts ingested on their call date when yfinance had no
+    future data yet.  Re-publishing to the raw-prices topic refreshes the
+    raw_prices collection used for chart data.  The return fields themselves
+    (return_1d/3d/7d) are filled by the correlation service's
+    backfill_pending_returns job (runs every 4 h).
     """
     import time as _time
 
@@ -397,7 +408,7 @@ def _refresh_stale_prices(producer: KafkaProducer, store: ProcessedStore) -> Non
         logger.debug("Price refresh: no stale records")
         return
 
-    logger.info("Price refresh: %d record(s) with null return_7d", len(stale))
+    logger.info("Price refresh: %d record(s) with at least one null return", len(stale))
     refreshed = 0
 
     for doc in stale[:_REFRESH_BATCH]:

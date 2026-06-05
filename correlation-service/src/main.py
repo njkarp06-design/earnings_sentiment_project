@@ -99,7 +99,7 @@ def _raw_prices_loop(bootstrap_servers: str, mongo_uri: str) -> None:
 def main() -> None:
     cfg = Config.from_env()
 
-    # Background: daily backfill of pending 1d/3d/7d returns
+    # Background: 4-hourly backfill of pending 1d/3d/7d returns
     threading.Thread(
         target=_backfill_loop,
         args=(cfg.mongo_uri,),
