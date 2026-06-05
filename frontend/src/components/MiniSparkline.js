@@ -25,7 +25,7 @@ export default function MiniSparkline({ data, positive, height = 64 }) {
   const uid = useId().replace(/:/g, '');
 
   if (!data?.length) return null;
-  if (data.filter(p => p.pct != null).length < 3) return null;
+  if (data.filter(p => p.pct != null).length < 2) return null;
 
   // null if return_7d unknown → neutral slate color
   const color =
