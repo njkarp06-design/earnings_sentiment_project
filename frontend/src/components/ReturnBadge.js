@@ -6,13 +6,13 @@ export default function ReturnBadge({ value, label, pending = false }) {
       <div className="text-center">
         <div className={clsx(
           'text-sm font-mono tabular-nums',
-          pending ? 'text-amber-500/80 animate-pulse' : 'text-slate-700'
+          pending ? 'text-amber-600 animate-pulse' : 'text-slate-400'
         )}>
           {pending ? '···' : '—'}
         </div>
         <div className={clsx(
           'text-[10px] mt-0.5 uppercase tracking-wider',
-          pending ? 'text-amber-600/60' : 'text-slate-700'
+          pending ? 'text-amber-600' : 'text-slate-400'
         )}>
           {label}
         </div>
@@ -27,11 +27,11 @@ export default function ReturnBadge({ value, label, pending = false }) {
     <div className="text-center">
       <div className={clsx(
         'text-sm font-semibold font-mono tabular-nums',
-        pos ? 'text-emerald-400' : 'text-red-400'
+        pos ? 'text-emerald-600' : 'text-red-600'
       )}>
         {pos ? '+' : ''}{pct}%
       </div>
-      <div className="text-[10px] text-slate-600 mt-0.5 uppercase tracking-wider">{label}</div>
+      <div className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">{label}</div>
     </div>
   );
 }

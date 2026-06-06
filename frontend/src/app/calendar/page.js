@@ -48,7 +48,7 @@ export default function CalendarPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-100 tracking-tight">Earnings Calendar</h1>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Earnings Calendar</h1>
         <p className="text-slate-500 mt-1 text-sm">Upcoming earnings reports — next 30 days</p>
       </div>
 
@@ -57,19 +57,19 @@ export default function CalendarPage() {
       {error && (
         <div className="text-center py-16">
           <p className="text-slate-500">Could not load calendar</p>
-          <p className="text-red-400 text-sm mt-1">{error}</p>
+          <p className="text-red-600 text-sm mt-1">{error}</p>
         </div>
       )}
 
       {!loading && !error && events.length === 0 && (
         <div className="text-center py-20 flex flex-col items-center gap-3">
-          <div className="text-slate-800">
+          <div className="text-slate-400">
             <svg className="w-10 h-10 mx-auto" fill="none" stroke="currentColor" strokeWidth={1.2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 9v7.5" />
             </svg>
           </div>
-          <p className="text-slate-500 font-medium">No upcoming earnings found</p>
-          <p className="text-slate-600 text-sm">Check back as earnings season approaches.</p>
+          <p className="text-slate-700 font-medium">No upcoming earnings found</p>
+          <p className="text-slate-500 text-sm">Check back as earnings season approaches.</p>
         </div>
       )}
 
@@ -89,12 +89,12 @@ export default function CalendarPage() {
 
           {/* ── Logged-out nudge ───────────────────────────────────── */}
           {!isLoggedIn && (
-            <div className="flex items-center gap-3 bg-slate-900/60 border border-slate-800 rounded-xl px-5 py-4">
-              <div className="w-1.5 h-8 rounded-full bg-cyan-500/50 shrink-0" />
+            <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-5 py-4">
+              <div className="w-1.5 h-8 rounded-full bg-blue-300 shrink-0" />
               <div>
-                <p className="text-sm text-slate-300 font-medium">See your portfolio companies here</p>
+                <p className="text-sm text-slate-700 font-medium">See your portfolio companies here</p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  <Link href="/login" className="text-cyan-400 hover:text-cyan-300 transition-colors">Sign in</Link>
+                  <Link href="/login" className="text-blue-700 hover:text-blue-600 transition-colors font-medium">Sign in</Link>
                   {' '}and save companies to your portfolio — they&apos;ll appear at the top of this calendar.
                 </p>
               </div>
@@ -132,8 +132,8 @@ export default function CalendarPage() {
 function SectionHeader({ title, subtitle }) {
   return (
     <div className="mb-3">
-      <h2 className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">{title}</h2>
-      {subtitle && <p className="text-[11px] text-slate-600 mt-0.5">{subtitle}</p>}
+      <h2 className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">{title}</h2>
+      {subtitle && <p className="text-[11px] text-slate-500 mt-0.5">{subtitle}</p>}
     </div>
   );
 }
@@ -141,14 +141,14 @@ function SectionHeader({ title, subtitle }) {
 function SourceBadge({ source }) {
   if (source === 'portfolio') {
     return (
-      <span className="ml-2 text-[10px] text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-1.5 py-0.5 rounded-full">
+      <span className="ml-2 text-[10px] text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">
         portfolio
       </span>
     );
   }
   if (source === 'system') {
     return (
-      <span className="ml-2 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
+      <span className="ml-2 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
         tracked
       </span>
     );
@@ -158,44 +158,44 @@ function SourceBadge({ source }) {
 
 function EventTable({ events }) {
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-800 text-[10px] text-slate-600 uppercase tracking-widest">
+          <tr className="border-b border-slate-200 bg-slate-50 text-[10px] text-slate-400 uppercase tracking-widest">
             <th className="text-left px-5 py-3 font-medium">Date</th>
             <th className="text-left px-5 py-3 font-medium">Ticker</th>
             <th className="text-right px-5 py-3 font-medium">EPS Est.</th>
             <th className="text-right px-5 py-3 font-medium">Rev. Est.</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800/50">
+        <tbody className="divide-y divide-slate-200">
           {events.map((e) => {
             const countdown = daysUntil(e.date);
             return (
-              <tr key={`${e.ticker}-${e.date}`} className="hover:bg-slate-800/40 transition-colors">
-                <td className="px-5 py-3 text-slate-500">
+              <tr key={`${e.ticker}-${e.date}`} className="hover:bg-slate-50 transition-colors">
+                <td className="px-5 py-3 text-slate-600">
                   <span className="font-mono tabular-nums">{fmtDate(e.date)}</span>
                   {countdown && (
-                    <span className="ml-2 text-[10px] text-slate-700 font-mono">{countdown}</span>
+                    <span className="ml-2 text-[10px] text-slate-400 font-mono">{countdown}</span>
                   )}
                 </td>
                 <td className="px-5 py-3">
                   {e.tracked ? (
                     <Link
                       href={`/companies/${e.ticker}`}
-                      className="font-mono font-bold text-cyan-400 hover:text-cyan-300 transition-colors tracking-tight"
+                      className="font-mono font-bold text-blue-700 hover:text-blue-600 transition-colors tracking-tight"
                     >
                       {e.ticker}
                     </Link>
                   ) : (
-                    <span className="font-mono text-slate-400">{e.ticker}</span>
+                    <span className="font-mono text-slate-600">{e.ticker}</span>
                   )}
                   <SourceBadge source={e.source} />
                 </td>
-                <td className="px-5 py-3 text-right text-slate-500 font-mono tabular-nums">
+                <td className="px-5 py-3 text-right text-slate-600 font-mono tabular-nums">
                   {e.eps_estimate != null ? e.eps_estimate.toFixed(2) : '—'}
                 </td>
-                <td className="px-5 py-3 text-right text-slate-500 font-mono tabular-nums">
+                <td className="px-5 py-3 text-right text-slate-600 font-mono tabular-nums">
                   {fmtNum(e.revenue_estimate)}
                 </td>
               </tr>
@@ -209,13 +209,13 @@ function EventTable({ events }) {
 
 function Skeleton() {
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden animate-pulse">
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm animate-pulse">
       {Array.from({ length: 8 }).map((_, i) => (
-        <div key={i} className="flex gap-4 px-5 py-3 border-b border-slate-800/50">
-          <div className="h-3 bg-slate-800 rounded w-24" />
-          <div className="h-3 bg-slate-800 rounded w-14" />
-          <div className="h-3 bg-slate-800 rounded w-12 ml-auto" />
-          <div className="h-3 bg-slate-800 rounded w-16" />
+        <div key={i} className="flex gap-4 px-5 py-3 border-b border-slate-200">
+          <div className="h-3 bg-slate-200 rounded w-24" />
+          <div className="h-3 bg-slate-200 rounded w-14" />
+          <div className="h-3 bg-slate-200 rounded w-12 ml-auto" />
+          <div className="h-3 bg-slate-200 rounded w-16" />
         </div>
       ))}
     </div>
