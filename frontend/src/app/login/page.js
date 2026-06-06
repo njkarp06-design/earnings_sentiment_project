@@ -31,22 +31,22 @@ export default function LoginPage() {
     <div className="max-w-sm mx-auto mt-16">
       {/* Brand mark */}
       <div className="flex flex-col items-center mb-8">
-        <div className="w-10 h-10 rounded-xl bg-cyan-500 flex items-center justify-center font-bold text-sm text-slate-900 mb-4 shadow-[0_0_32px_rgba(6,182,212,0.3)]">
+        <div className="w-10 h-10 rounded-xl bg-blue-700 flex items-center justify-center font-bold text-sm text-white mb-4 shadow-sm">
           ES
         </div>
-        <h1 className="text-2xl font-bold text-slate-100 tracking-tight">Welcome back</h1>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Welcome back</h1>
         <p className="text-slate-500 text-sm mt-1">Sign in to your account</p>
       </div>
 
       <form
         onSubmit={handleSubmit}
-        className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-[0_0_48px_rgba(6,182,212,0.05)]"
+        className="bg-white border border-slate-200 rounded-xl p-6 space-y-4 shadow-sm"
       >
         <Field label="Email" type="email" value={email} onChange={setEmail} />
         <Field label="Password" type="password" value={password} onChange={setPassword} />
 
         {error && (
-          <p className="text-red-400 text-sm bg-red-400/5 border border-red-400/15 rounded-lg px-3 py-2">
+          <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
             {error}
           </p>
         )}
@@ -54,14 +54,14 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors"
+          className="w-full bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
         >
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
 
-        <p className="text-center text-xs text-slate-600">
+        <p className="text-center text-xs text-slate-500">
           No account?{' '}
-          <Link href="/register" className="text-cyan-400 hover:text-cyan-300 font-medium transition-colors">
+          <Link href="/register" className="text-blue-700 hover:text-blue-600 font-medium transition-colors">
             Create one
           </Link>
         </p>
@@ -73,13 +73,13 @@ export default function LoginPage() {
 function Field({ label, type, value, onChange }) {
   return (
     <div>
-      <label className="block text-xs text-slate-400 mb-1.5 font-medium tracking-wide">{label}</label>
+      <label className="block text-xs text-slate-600 mb-1.5 font-medium">{label}</label>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required
-        className="w-full bg-[#080d1a] border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/15 transition-all"
+        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/15 transition-all"
       />
     </div>
   );
