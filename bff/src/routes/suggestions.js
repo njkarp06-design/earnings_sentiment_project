@@ -15,10 +15,17 @@ router.get('/', async (req, res, next) => {
     const user = await User.findById(req.user.sub).select('watchlist');
     const watchlist = user?.watchlist ?? [];
 
-    // Most recent call per ticker, excluding already-saved tickers
+    // Most recent call per ticker, excluding already-saved tickers.
+    // Sort by _name_quality so EDGAR records (real company name) are preferred
+    // over FMP duplicates (ticker-as-name) when both cover the same call_date.
     const candidates = await PriceReaction.aggregate([
       { $match: { ticker: { $nin: watchlist } } },
-      { $sort: { call_date: -1 } },
+      {
+        $addFields: {
+          _name_quality: { $cond: [{ $ne: ['$company_name', '$ticker'] }, 1, 0] },
+        },
+      },
+      { $sort: { call_date: -1, _name_quality: -1, correlated_at: -1 } },
       { $group: { _id: '$ticker', doc: { $first: '$$ROOT' } } },
       { $replaceRoot: { newRoot: '$doc' } },
       { $project: FIELDS },

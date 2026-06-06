@@ -21,7 +21,7 @@ def backfill_pending_returns(db) -> None:
     # still null — this happens when the initial yfinance call failed and a
     # later retry only succeeded for the return values (or for records
     # correlated before price_series was added to the schema).
-    two_years_ago = (datetime.utcnow() - timedelta(days=730)).strftime("%Y-%m-%d")
+    two_years_ago = (datetime.now(timezone.utc) - timedelta(days=730)).strftime("%Y-%m-%d")
 
     pending = list(
         db.price_reactions.find(

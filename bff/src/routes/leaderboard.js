@@ -21,10 +21,13 @@ router.get('/', async (_req, res, next) => {
           return_7d:        { $first: '$return_7d' },
         },
       },
+      // Sort by call_date descending before the ticker group so $first picks
+      // the company_name from the most recent call (most likely to be populated).
+      { $sort: { '_id.call_date': -1 } },
       {
         $group: {
           _id:            '$_id.ticker',
-          company_name:   { $last: '$company_name' },
+          company_name:   { $first: '$company_name' },
           call_count:     { $sum: 1 },
           avg_confidence: { $avg: '$confidence_score' },
           avg_return_1d:  { $avg: '$return_1d' },
