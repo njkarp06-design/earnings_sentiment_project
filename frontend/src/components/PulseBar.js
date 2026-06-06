@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react';
 import { getPulse } from '@/lib/api';
 
 function scoreColor(score) {
-  if (score >= 70) return 'text-emerald-400';
-  if (score >= 45) return 'text-amber-400';
-  return 'text-red-400';
+  if (score >= 70) return 'text-emerald-600';
+  if (score >= 45) return 'text-amber-600';
+  return 'text-red-600';
 }
 
 export default function PulseBar() {
@@ -18,11 +18,11 @@ export default function PulseBar() {
   if (!sectors.length) return null;
 
   return (
-    <div className="flex items-stretch border border-slate-800 rounded-xl overflow-x-auto bg-slate-900/50 mb-6 text-xs">
-      <div className="px-4 py-3 flex items-center shrink-0 border-r border-slate-800">
+    <div className="flex items-stretch border border-slate-200 rounded-xl overflow-x-auto bg-white mb-6 text-xs shadow-sm">
+      <div className="px-4 py-3 flex items-center shrink-0 border-r border-slate-200">
         <div className="flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-          <span className="font-semibold text-cyan-400/70 uppercase tracking-widest text-[10px]">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-700 animate-pulse" />
+          <span className="font-semibold text-blue-700 uppercase tracking-widest text-[10px]">
             Market Pulse
           </span>
         </div>
@@ -32,7 +32,7 @@ export default function PulseBar() {
         <div
           key={s.sector}
           className={`flex items-center gap-2.5 px-4 py-3 shrink-0 ${
-            i < sectors.length - 1 ? 'border-r border-slate-800' : ''
+            i < sectors.length - 1 ? 'border-r border-slate-200' : ''
           }`}
         >
           <span className="text-slate-500 text-[11px]">{s.sector}</span>
@@ -40,7 +40,7 @@ export default function PulseBar() {
             {s.avg_confidence}
           </span>
           {s.avg_return_7d != null && (
-            <span className={`font-mono tabular-nums ${s.avg_return_7d >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            <span className={`font-mono tabular-nums ${s.avg_return_7d >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
               {s.avg_return_7d >= 0 ? '+' : ''}{s.avg_return_7d}%
             </span>
           )}
