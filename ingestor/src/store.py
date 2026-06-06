@@ -166,8 +166,8 @@ class ProcessedStore:
         _backfill_ticker daemon thread that is interrupted by a container restart
         leaves those companies without historical data indefinitely.
         """
-        from datetime import datetime, timedelta
-        cutoff = (datetime.utcnow() - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+        from datetime import datetime, timedelta, timezone
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
         db = self._client.get_default_database()
         try:
             return {
@@ -188,8 +188,8 @@ class ProcessedStore:
         but the call is old enough that price data should now be available.
         min_age_days=1 catches everything from yesterday onward.
         """
-        from datetime import datetime, timedelta
-        cutoff = (datetime.utcnow() - timedelta(days=min_age_days)).strftime("%Y-%m-%d")
+        from datetime import datetime, timedelta, timezone
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=min_age_days)).strftime("%Y-%m-%d")
         db = self._client.get_default_database()
         return list(db.price_reactions.find(
             {
