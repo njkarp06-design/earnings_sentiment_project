@@ -56,7 +56,7 @@ export default function SearchBar({ onResult }) {
     <div className="flex flex-col gap-1.5">
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none">
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
             <SearchIcon />
           </span>
           <input
@@ -65,12 +65,12 @@ export default function SearchBar({ onResult }) {
             onChange={(e) => { setQuery(e.target.value); setNotFound(false); }}
             onKeyDown={handleKeyDown}
             placeholder="Search by ticker or company name…"
-            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-10 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/15 transition-all"
+            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-10 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/15 transition-all"
           />
           {query && (
             <button
               onClick={handleClear}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-300 transition-colors"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
               aria-label="Clear"
             >
               <ClearIcon />
@@ -80,15 +80,15 @@ export default function SearchBar({ onResult }) {
         <button
           onClick={handleSearch}
           disabled={!query.trim() || loading}
-          className="bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-900 font-semibold px-5 rounded-xl text-sm transition-colors shrink-0"
+          className="bg-blue-700 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-5 rounded-xl text-sm transition-colors shrink-0"
         >
           {loading ? 'Searching…' : 'Search'}
         </button>
       </div>
 
       {notFound && (
-        <p className="text-xs text-slate-600 pl-1">
-          No company found matching <span className="text-slate-400">{query}</span> — try a ticker symbol or the full company name.
+        <p className="text-xs text-slate-500 pl-1">
+          No company found matching <span className="text-slate-700">{query}</span> — try a ticker symbol or the full company name.
         </p>
       )}
     </div>

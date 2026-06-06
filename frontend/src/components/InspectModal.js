@@ -19,14 +19,13 @@ function SparkleIcon() {
   );
 }
 
-// Safe inline-bold renderer — no dangerouslySetInnerHTML
 function BoldLine({ text }) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
   return (
     <>
       {parts.map((part, i) =>
         part.startsWith('**') && part.endsWith('**') ? (
-          <strong key={i} className="text-slate-100 font-semibold">
+          <strong key={i} className="text-slate-900 font-semibold">
             {part.slice(2, -2)}
           </strong>
         ) : (
@@ -46,7 +45,7 @@ function AnalysisBody({ text }) {
           return (
             <h3
               key={i}
-              className="text-slate-100 font-semibold text-sm mt-6 mb-2 first:mt-0 pb-1 border-b border-slate-800/80"
+              className="text-slate-900 font-semibold text-sm mt-6 mb-2 first:mt-0 pb-1 border-b border-slate-200"
             >
               {line.slice(3)}
             </h3>
@@ -55,8 +54,8 @@ function AnalysisBody({ text }) {
         if (line.startsWith('- ') || line.startsWith('• ')) {
           return (
             <div key={i} className="flex gap-2 mb-1">
-              <span className="text-slate-500 shrink-0 mt-0.5">·</span>
-              <p className="text-slate-300 text-sm leading-relaxed">
+              <span className="text-slate-400 shrink-0 mt-0.5">·</span>
+              <p className="text-slate-600 text-sm leading-relaxed">
                 <BoldLine text={line.slice(2)} />
               </p>
             </div>
@@ -64,7 +63,7 @@ function AnalysisBody({ text }) {
         }
         if (line.trim() === '') return <div key={i} className="h-2" />;
         return (
-          <p key={i} className="text-slate-300 text-sm leading-relaxed mb-1">
+          <p key={i} className="text-slate-600 text-sm leading-relaxed mb-1">
             <BoldLine text={line} />
           </p>
         );
@@ -77,12 +76,12 @@ function LoadingDots() {
   return (
     <div className="flex items-center gap-1.5 py-10 justify-center">
       <SparkleIcon />
-      <span className="text-slate-400 text-sm ml-1">Analysing with Claude</span>
+      <span className="text-slate-500 text-sm ml-1">Analysing with Claude</span>
       <span className="flex gap-1 ml-1">
         {[0, 150, 300].map((delay) => (
           <span
             key={delay}
-            className="inline-block w-1 h-1 rounded-full bg-slate-500 animate-bounce"
+            className="inline-block w-1 h-1 rounded-full bg-slate-400 animate-bounce"
             style={{ animationDelay: `${delay}ms` }}
           />
         ))}
@@ -104,9 +103,6 @@ export default function InspectModal({ item, onClose }) {
   const [error, setError] = useState(null);
   const scrollRef = useRef(null);
 
-  // ESC to close + body scroll lock.
-  // Only restore scroll to '' if we were the ones who locked it (i.e. SearchOverlay
-  // wasn't already holding the lock when InspectModal mounted).
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
@@ -118,15 +114,12 @@ export default function InspectModal({ item, onClose }) {
     };
   }, [onClose]);
 
-  // Auto-scroll as text streams in
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [analysis]);
 
-  // Start streaming immediately on mount; guard all callbacks so they become
-  // no-ops if the modal is closed before the stream finishes.
   useEffect(() => {
     if (!getToken()) {
       setError('Sign in to use deep analysis.');
@@ -156,34 +149,34 @@ export default function InspectModal({ item, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#080d1a]/85 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.7)] flex flex-col"
+        className="w-full max-w-2xl bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-[0_8px_40px_rgba(0,0,0,0.12)] flex flex-col"
         style={{ maxHeight: '88vh' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ──────────────────────────────────────────────── */}
-        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 border-b border-slate-800/80 shrink-0">
+        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 border-b border-slate-200 shrink-0">
           <div>
             <div className="flex items-center gap-2">
               <SparkleIcon />
-              <span className="text-[10px] font-semibold text-cyan-400/70 uppercase tracking-widest">
+              <span className="text-[10px] font-semibold text-blue-700 uppercase tracking-widest">
                 Deep Analysis
               </span>
             </div>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-lg font-bold font-mono text-slate-100 tracking-tight">{item.ticker}</span>
+              <span className="text-lg font-bold font-mono text-slate-900 tracking-tight">{item.ticker}</span>
               {item.company_name && (
-                <span className="text-slate-400 text-sm">{item.company_name}</span>
+                <span className="text-slate-500 text-sm">{item.company_name}</span>
               )}
             </div>
-            <p className="text-slate-500 text-xs mt-0.5">{fmtDate(item.call_date)}</p>
+            <p className="text-slate-400 text-xs mt-0.5">{fmtDate(item.call_date)}</p>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-500 hover:text-slate-300 transition-colors mt-0.5 shrink-0"
+            className="text-slate-400 hover:text-slate-700 transition-colors mt-0.5 shrink-0"
             aria-label="Close"
           >
             <CloseIcon />
@@ -196,14 +189,14 @@ export default function InspectModal({ item, onClose }) {
           className="overflow-y-auto px-6 py-5 flex-1"
         >
           {error ? (
-            <p className="text-red-400 text-sm text-center py-8">{error}</p>
+            <p className="text-red-600 text-sm text-center py-8">{error}</p>
           ) : analysis ? (
             <>
               <AnalysisBody text={analysis} />
               {done && (
-                <div className="mt-6 pt-4 border-t border-slate-700/40 flex items-center gap-2">
+                <div className="mt-6 pt-4 border-t border-slate-200 flex items-center gap-2">
                   <SparkleIcon />
-                  <span className="text-[10px] text-slate-600 uppercase tracking-widest">
+                  <span className="text-[10px] text-slate-400 uppercase tracking-widest">
                     Analysis complete · Powered by Claude
                   </span>
                 </div>
