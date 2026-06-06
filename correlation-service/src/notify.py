@@ -133,7 +133,7 @@ def _send(to_email: str, doc: dict) -> None:
           CEO Confidence
         </p>
         <p style="color:{score_color};font-size:32px;font-weight:700;margin:0 0 2px">
-          {score}
+          {score if score is not None else '—'}
           <span style="font-size:16px;color:#64748b;font-weight:400">/100</span>
         </p>
         <p style="color:{score_color};font-size:13px;margin:0">{score_label}</p>
@@ -156,9 +156,10 @@ def _send(to_email: str, doc: dict) -> None:
     </div>
     """
 
+    subject_score = f"{score}/100" if score is not None else "results available"
     resend.Emails.send({
         "from":    _FROM_EMAIL,
         "to":      [to_email],
-        "subject": f"{ticker} just reported — CEO confidence {score}/100",
+        "subject": f"{ticker} just reported — CEO confidence {subject_score}",
         "html":    html,
     })
