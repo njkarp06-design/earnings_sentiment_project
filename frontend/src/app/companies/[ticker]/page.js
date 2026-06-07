@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
-import { getCompanyHistory, getAccuracy, getCompanyInfo } from '@/lib/api';
+import { getCompanyHistory, getAccuracy, getCompanyInfo, getSectors } from '@/lib/api';
 import { usePortfolio } from '@/context/PortfolioContext';
 import ScoreBar from '@/components/ScoreBar';
 import ReturnBadge from '@/components/ReturnBadge';
@@ -55,6 +55,7 @@ export default function CompanyPage({ params }) {
   const [history, setHistory]       = useState([]);
   const [accuracy, setAccuracy]     = useState(null);
   const [companyInfo, setCompanyInfo] = useState(null);
+  const [sectors, setSectors]       = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
   const [saving, setSaving]         = useState(false);
@@ -66,11 +67,13 @@ export default function CompanyPage({ params }) {
       getCompanyHistory(ticker),
       getAccuracy(ticker),
       getCompanyInfo(ticker).catch(() => null),
+      getSectors().catch(() => []),
     ])
-      .then(([hist, acc, info]) => {
+      .then(([hist, acc, info, secs]) => {
         setHistory(hist);
         setAccuracy(acc);
         setCompanyInfo(info);
+        setSectors(secs);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -162,6 +165,20 @@ export default function CompanyPage({ params }) {
     ? pearson(scatterValid.map(c => c.confidence_score), scatterValid.map(c => c.return_7d))
     : null;
 
+  // Score trend: delta from oldest→newest over last 4–6 calls with a score
+  const trendCalls = history.filter(c => c.confidence_score != null).slice(0, 6).reverse();
+  const scoreTrend = trendCalls.length >= 2
+    ? { delta: trendCalls[trendCalls.length - 1].confidence_score - trendCalls[0].confidence_score, n: trendCalls.length }
+    : null;
+
+  // Sector-relative: compare company avg 7d return vs sector avg
+  const returns7d = history.filter(c => c.return_7d != null);
+  const companyAvg7d = returns7d.length
+    ? returns7d.reduce((s, c) => s + c.return_7d, 0) / returns7d.length
+    : null;
+  const sectorAvg7d = sector ? (sectors.find(s => s.sector === sector)?.avg_7d ?? null) : null;
+  const vsSector = companyAvg7d != null && sectorAvg7d != null ? companyAvg7d - sectorAvg7d : null;
+
   const chartData = [...history].reverse().map((item) => ({
     date: fmtDate(item.call_date),
     score: item.confidence_score,
@@ -228,6 +245,22 @@ export default function CompanyPage({ params }) {
             value={`${predictabilityR >= 0 ? '+' : ''}${predictabilityR.toFixed(2)} r`}
           />
         )}
+        {scoreTrend !== null && (
+          <StatChip
+            label="Score Trend"
+            hint={`Change in CEO confidence score from the oldest to the most recent of the last ${scoreTrend.n} calls. Positive = management has grown more confident over time.`}
+            value={`${scoreTrend.delta >= 0 ? '+' : ''}${scoreTrend.delta.toFixed(0)} pts`}
+            positive={scoreTrend.delta > 3 ? true : scoreTrend.delta < -3 ? false : undefined}
+          />
+        )}
+        {vsSector !== null && (
+          <StatChip
+            label="vs Sector (7d)"
+            hint={`This company's average 7-day post-earnings return minus the ${sector} sector average. Positive = outperforms sector peers after earnings.`}
+            value={`${vsSector >= 0 ? '+' : ''}${vsSector.toFixed(2)}%`}
+            positive={vsSector > 0}
+          />
+        )}
       </div>
 
       {/* ── Score history chart ──────────────────────────────────── */}
@@ -242,7 +275,7 @@ export default function CompanyPage({ params }) {
 
       {/* ── Post-earnings drift ──────────────────────────────────── */}
       {history.length >= 2 && (
-        <PostEarningsProfile calls={history} />
+        <PostEarningsProfile calls={history} sectorAvg7d={sectorAvg7d} />
       )}
 
       {/* ── Predictability scatter ───────────────────────────────── */}

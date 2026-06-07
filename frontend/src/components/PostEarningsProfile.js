@@ -97,7 +97,7 @@ function Pill({ label, value, pending }) {
   );
 }
 
-export default function PostEarningsProfile({ calls, showCurrentStats = true }) {
+export default function PostEarningsProfile({ calls, showCurrentStats = true, sectorAvg7d = null }) {
   if (!calls?.length) return null;
 
   const current    = calls[0];
@@ -178,6 +178,12 @@ export default function PostEarningsProfile({ calls, showCurrentStats = true }) 
             <span className="flex items-center gap-1.5 text-slate-500" title="±1 standard deviation — the typical spread of returns across prior calls">
               <span className="w-4 h-2 rounded-sm inline-block bg-blue-600/10 border border-blue-600/20" />
               ±1 std dev
+            </span>
+          )}
+          {sectorAvg7d != null && (
+            <span className="flex items-center gap-1.5 text-slate-500" title="Sector average 7-day post-earnings return — benchmark line">
+              <span className="w-4 border-t-[2px] border-violet-500 border-dashed inline-block rounded" />
+              Sector avg
             </span>
           )}
           {hasHistory && (
@@ -283,6 +289,18 @@ export default function PostEarningsProfile({ calls, showCurrentStats = true }) 
             />
           )}
 
+          {/* Sector avg 7d reference — subtle benchmark line */}
+          {sectorAvg7d != null && (
+            <ReferenceLine
+              y={sectorAvg7d}
+              stroke="#7c3aed"
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+              strokeOpacity={0.6}
+              label={false}
+            />
+          )}
+
           {/* Pulsing dot at the tip of the current call if still tracking */}
           {isLive && lastDay != null && lastPct != null && (
             <ReferenceDot
@@ -344,6 +362,17 @@ export default function PostEarningsProfile({ calls, showCurrentStats = true }) 
                   {Math.round(hitRate * 100)}%
                   <span className="text-slate-400 text-xs font-normal ml-1">
                     ({hitCount}/{returns7d.length})
+                  </span>
+                </div>
+              </div>
+            )}
+            {sectorAvg7d != null && avg7d != null && (
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase tracking-widest mb-0.5" title="Company avg 7d vs sector average">vs Sector</div>
+                <div className={`text-sm font-mono font-semibold tabular-nums ${avg7d - sectorAvg7d >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {avg7d - sectorAvg7d >= 0 ? '+' : ''}{(avg7d - sectorAvg7d).toFixed(2)}%
+                  <span className="text-slate-400 text-xs font-normal ml-1">
+                    (sect {sectorAvg7d >= 0 ? '+' : ''}{sectorAvg7d.toFixed(2)}%)
                   </span>
                 </div>
               </div>
