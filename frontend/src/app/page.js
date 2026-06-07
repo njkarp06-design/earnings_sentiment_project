@@ -29,7 +29,7 @@ function FeedList({ items }) {
           <span className="text-[10px] text-slate-400 uppercase tracking-widest">7d chart</span>
         </div>
         <div className="w-28 shrink-0 py-2.5 px-3">
-          <span className="text-[10px] text-slate-400 uppercase tracking-widest">CEO conf.</span>
+          <span className="text-[10px] text-slate-400 uppercase tracking-widest">CEO Confidence</span>
         </div>
         <div className="flex shrink-0">
           {['1d', '3d', '7d'].map(label => (
