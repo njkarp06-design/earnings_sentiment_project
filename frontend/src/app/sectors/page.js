@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import SearchOverlay from '@/components/SearchOverlay';
-import Link from 'next/link';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -164,14 +163,18 @@ function SectorDetail({ sector, detail, loading, onCompanyClick }) {
               Aggregate post-earnings drift · all companies in sector
             </p>
           </div>
-          {detail && (
-            <div className="flex items-center gap-6">
-              <Stat label="Avg 7d" value={fmtPct(calcAvg(detail.companies, 'avg_7d'))} color={pctColor(calcAvg(detail.companies, 'avg_7d'))} />
-              <Stat label="Win Rate" hint="% of earnings calls where the stock closed positive on day 7" value={`${Math.round(calcWinRate(detail.companies) * 100)}%`} color={winColor(calcWinRate(detail.companies))} />
-              <Stat label="Companies" value={detail.companies.length} />
-              <Stat label="Total Calls" value={detail.companies.reduce((a, c) => a + c.call_count, 0)} />
-            </div>
-          )}
+          {detail && (() => {
+            const avg7d = calcAvg(detail.companies, 'avg_7d');
+            const wr    = calcWinRate(detail.companies);
+            return (
+              <div className="flex items-center gap-6">
+                <Stat label="Avg 7d" value={fmtPct(avg7d)} color={pctColor(avg7d)} />
+                <Stat label="Win Rate" hint="% of earnings calls where the stock closed positive on day 7" value={wr != null ? `${Math.round(wr * 100)}%` : '—'} color={winColor(wr)} />
+                <Stat label="Companies" value={detail.companies.length} />
+                <Stat label="Total Calls" value={detail.companies.reduce((a, c) => a + c.call_count, 0)} />
+              </div>
+            );
+          })()}
         </div>
       </div>
 
