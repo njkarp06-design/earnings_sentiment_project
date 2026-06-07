@@ -204,5 +204,31 @@ class ProcessedStore:
             {"ticker": 1, "call_date": 1, "filing_id": 1, "_id": 0},
         ))
 
+    def clear_processed_for_ticker(
+        self,
+        ticker: str,
+        accession_numbers: list = None,
+    ) -> int:
+        """Clear processed flags for a ticker so it can be fully re-ingested.
+
+        Deletes FMP and Alpha Vantage filing IDs by name pattern (they embed
+        the ticker directly).  Also deletes any EDGAR accession numbers passed
+        via accession_numbers — the caller must supply these since EDGAR IDs
+        do not embed the ticker symbol.
+
+        Returns the total number of entries deleted.
+        """
+        ticker = ticker.upper()
+        deleted = 0
+        # FMP IDs: fmp_TICKER_YEAR_QN  |  AV IDs: av_TICKER_...
+        for prefix in (f"fmp_{ticker}_", f"av_{ticker}_"):
+            result = self._col.delete_many({"filing_id": {"$regex": f"^{prefix}"}})
+            deleted += result.deleted_count
+        if accession_numbers:
+            result = self._col.delete_many({"filing_id": {"$in": list(accession_numbers)}})
+            deleted += result.deleted_count
+        logger.info("clear_processed_for_ticker: %s — deleted %d entries", ticker, deleted)
+        return deleted
+
     def close(self) -> None:
         self._client.close()
