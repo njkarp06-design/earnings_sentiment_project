@@ -23,8 +23,14 @@ _DATA_BASE = "https://data.sec.gov"
 # SEC fair-use guidance: ≤ 10 requests/second
 _REQUEST_DELAY = 0.12   # seconds between requests
 
-# Exhibit doc-types we bother downloading
-_EXHIBIT_TYPES = {"ex-99.1", "ex-99.2", "ex-99.3", "ex-99"}
+# Exhibit doc-types we bother downloading.
+# ex-99.4 / ex-99.5 are used by some companies for additional earnings exhibits.
+_EXHIBIT_TYPES = {"ex-99.1", "ex-99.2", "ex-99.3", "ex-99.4", "ex-99.5", "ex-99"}
+
+# Primary 8-K document types — checked as a last resort when no exhibit candidate
+# yields a transcript.  Some companies embed the transcript directly in the
+# primary filing document rather than as a named exhibit.
+_PRIMARY_DOC_TYPES = {"8-k", "8-k/a"}
 
 # A filing is classified as a transcript when ≥ this many signals appear
 _TRANSCRIPT_THRESHOLD = 2
@@ -219,9 +225,16 @@ class EdgarClient:
     def _exhibit_candidates(self, items: List[Dict]) -> List[str]:
         """
         From a filing index item list, return filenames worth downloading.
-        Preference: explicit exhibit type, then keyword in filename.
+
+        Returns two tiers concatenated:
+          1. Priority — explicit exhibit type (ex-99.x) or transcript keyword in
+             filename.  Checked first; most transcripts are found here.
+          2. Fallback — primary 8-K / 8-K/A document.  Some companies embed the
+             transcript directly in the primary filing document rather than as a
+             named exhibit.  The _is_transcript guard filters out short cover pages.
         """
-        candidates = []
+        priority = []
+        fallback = []
         for item in items:
             name = item.get("name", "")
             doc_type = item.get("type", "").lower()
@@ -236,9 +249,11 @@ class EdgarClient:
             )
 
             if doc_type in _EXHIBIT_TYPES or has_keyword:
-                candidates.append(name)
+                priority.append(name)
+            elif doc_type in _PRIMARY_DOC_TYPES:
+                fallback.append(name)
 
-        return candidates
+        return priority + fallback
 
     def _get_filing_items(
         self, cik_int: int, acc_nodash: str, accession_number: str
