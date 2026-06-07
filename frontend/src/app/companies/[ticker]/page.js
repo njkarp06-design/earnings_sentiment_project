@@ -227,7 +227,7 @@ export default function CompanyPage({ params }) {
       </div>
 
       {/* ── Quick stats strip ────────────────────────────────────── */}
-      <div className="flex items-center gap-8 py-4 mb-6 border-y border-slate-200">
+      <div className="flex items-center flex-wrap gap-8 py-4 mb-6 border-y border-slate-200">
         <StatChip label="Latest Score" value={latestCall?.confidence_score} scoreColored />
         <StatChip label="Calls Tracked" value={history.length} />
         <StatChip label="Last Report" value={fmtDate(latestCall?.call_date)} />
@@ -258,7 +258,7 @@ export default function CompanyPage({ params }) {
             label="vs Sector (7d)"
             hint={`This company's average 7-day post-earnings return minus the ${sector} sector average. Positive = outperforms sector peers after earnings.`}
             value={`${vsSector >= 0 ? '+' : ''}${vsSector.toFixed(2)}%`}
-            positive={vsSector > 0}
+            positive={vsSector > 0 ? true : vsSector < 0 ? false : undefined}
           />
         )}
       </div>

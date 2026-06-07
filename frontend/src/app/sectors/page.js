@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import SearchOverlay from '@/components/SearchOverlay';
 import Link from 'next/link';
-import Hint from '@/components/Hint';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -261,8 +260,11 @@ function SectorDetail({ sector, detail, loading, onCompanyClick }) {
 function Stat({ label, hint, value, color }) {
   return (
     <div className="text-right">
-      <div className="text-[10px] text-slate-400 uppercase tracking-widest mb-0.5 flex items-center justify-end gap-0.5">
-        {label}{hint && <Hint text={hint} />}
+      <div
+        className="text-[10px] text-slate-400 uppercase tracking-widest mb-0.5 cursor-default"
+        title={hint ?? undefined}
+      >
+        {label}
       </div>
       <div className={clsx('text-sm font-mono font-semibold tabular-nums', color ?? 'text-slate-800')}>{value}</div>
     </div>
@@ -270,13 +272,23 @@ function Stat({ label, hint, value, color }) {
 }
 
 function calcAvg(companies, field) {
-  const vals = companies.map(c => c[field]).filter(v => v != null);
-  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  let totalCalls = 0, totalVal = 0;
+  for (const c of companies) {
+    if (c[field] == null || !c.call_count) continue;
+    totalCalls += c.call_count;
+    totalVal   += c[field] * c.call_count;
+  }
+  return totalCalls > 0 ? totalVal / totalCalls : null;
 }
 
 function calcWinRate(companies) {
-  const vals = companies.map(c => c.win_rate).filter(v => v != null);
-  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  let totalCalls = 0, totalWins = 0;
+  for (const c of companies) {
+    if (c.win_rate == null || !c.call_count) continue;
+    totalCalls += c.call_count;
+    totalWins  += Math.round(c.win_rate * c.call_count);
+  }
+  return totalCalls > 0 ? totalWins / totalCalls : null;
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
