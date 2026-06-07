@@ -10,6 +10,8 @@ import ScoreChart from '@/components/ScoreChart';
 import MiniSparkline from '@/components/MiniSparkline';
 import InspectModal from '@/components/InspectModal';
 import PostEarningsProfile from '@/components/PostEarningsProfile';
+import PredictabilityScatter, { pearson } from '@/components/PredictabilityScatter';
+import Hint from '@/components/Hint';
 
 function fmtDate(str) {
   if (!str) return '—';
@@ -32,14 +34,16 @@ function scoreTextColor(score) {
   return 'text-red-600';
 }
 
-function StatChip({ label, value, scoreColored, positive }) {
+function StatChip({ label, hint, value, scoreColored, positive }) {
   let valueClass = 'text-slate-800 font-mono tabular-nums';
   if (scoreColored && value != null) valueClass = clsx('font-mono font-semibold tabular-nums', scoreTextColor(value));
   if (positive === true)  valueClass = 'text-emerald-600 font-mono font-semibold tabular-nums';
   if (positive === false) valueClass = 'text-red-600 font-mono font-semibold tabular-nums';
   return (
     <div>
-      <div className="text-[10px] text-slate-400 uppercase tracking-widest mb-0.5">{label}</div>
+      <div className="text-[10px] text-slate-400 uppercase tracking-widest mb-0.5 flex items-center gap-0.5">
+        {label}{hint && <Hint text={hint} />}
+      </div>
       <div className={clsx('text-sm', valueClass)}>{value ?? '—'}</div>
     </div>
   );
@@ -153,6 +157,11 @@ export default function CompanyPage({ params }) {
     );
   }
 
+  const scatterValid = history.filter(c => c.confidence_score != null && c.return_7d != null);
+  const predictabilityR = scatterValid.length >= 3
+    ? pearson(scatterValid.map(c => c.confidence_score), scatterValid.map(c => c.return_7d))
+    : null;
+
   const chartData = [...history].reverse().map((item) => ({
     date: fmtDate(item.call_date),
     score: item.confidence_score,
@@ -212,6 +221,13 @@ export default function CompanyPage({ params }) {
             positive={latestCall.return_7d >= 0}
           />
         )}
+        {predictabilityR !== null && (
+          <StatChip
+            label="Predictability"
+            hint="Pearson r — how well the CEO's confidence score predicts the 7-day return. +1 = perfect positive link, −1 = inverse, 0 = no relationship."
+            value={`${predictabilityR >= 0 ? '+' : ''}${predictabilityR.toFixed(2)} r`}
+          />
+        )}
       </div>
 
       {/* ── Score history chart ──────────────────────────────────── */}
@@ -228,6 +244,9 @@ export default function CompanyPage({ params }) {
       {history.length >= 2 && (
         <PostEarningsProfile calls={history} />
       )}
+
+      {/* ── Predictability scatter ───────────────────────────────── */}
+      <PredictabilityScatter calls={history} />
 
       {/* ── Track record ─────────────────────────────────────────── */}
       {accuracy?.buckets?.length > 0 && (

@@ -171,13 +171,13 @@ export default function PostEarningsProfile({ calls, showCurrentStats = true }) 
           {hasHistory && (
             <span className="flex items-center gap-1.5 text-slate-500">
               <span className="w-4 border-t-[2px] border-blue-600 inline-block rounded" />
-              Hist avg
+              Historical avg
             </span>
           )}
           {showBand && (
-            <span className="flex items-center gap-1.5 text-slate-500">
+            <span className="flex items-center gap-1.5 text-slate-500" title="±1 standard deviation — the typical spread of returns across prior calls">
               <span className="w-4 h-2 rounded-sm inline-block bg-blue-600/10 border border-blue-600/20" />
-              ±1σ
+              ±1 std dev
             </span>
           )}
           {hasHistory && (
