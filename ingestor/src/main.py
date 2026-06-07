@@ -389,6 +389,86 @@ def ingest_one(
     _backfill_ticker(ticker, cfg, edgar, producer, store, fmp, av=av)
 
 
+# ── Forced re-backfill (used by POST /rebackfill/<ticker>) ───────────────────
+
+def rebackfill_one(
+    ticker: str,
+    cfg: Config,
+    edgar: EdgarClient,
+    producer: KafkaProducer,
+    store: ProcessedStore,
+    fmp: Optional[FmpClient],
+    av: Optional[AlphaVantageClient] = None,
+) -> None:
+    """Clear all processed flags for a ticker then run a full re-ingest.
+
+    Use this after improving transcript detection (so previously-missed
+    filings are retried) or after upgrading a data-source plan (so the new
+    tier's broader history is fetched).
+
+    Step 1: Collect every EDGAR accession number for this ticker so they can
+            be cleared alongside the FMP / AV pattern-based entries.
+    Step 2: Call store.clear_processed_for_ticker — deletes those entries
+            from _ingested_filings.
+    Step 3: Run ingest_one, which performs EDGAR + FMP + AV scans and spawns
+            a full historical backfill thread.  The has_price_reaction_for_date
+            guard prevents duplicate price_reactions for dates already stored.
+    """
+    ticker = ticker.upper()
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+        days=cfg.lookback_days
+    )
+
+    # Collect EDGAR accession numbers for this ticker so they can be cleared.
+    edgar_accessions: list = []
+    info = edgar.get_company_info(ticker)
+    if info:
+        try:
+            filings = edgar.get_recent_8k_filings(info["cik"], since)
+            edgar_accessions = [f["accession_number"] for f in filings]
+            logger.info(
+                "Re-backfill: %s — %d EDGAR accession numbers to clear",
+                ticker, len(edgar_accessions),
+            )
+        except Exception as exc:
+            logger.warning(
+                "Re-backfill: could not list EDGAR filings for %s: %s", ticker, exc
+            )
+
+    deleted = store.clear_processed_for_ticker(ticker, edgar_accessions)
+    logger.info("Re-backfill: %s — cleared %d processed entries, starting ingest", ticker, deleted)
+
+    ingest_one(ticker, cfg, edgar, producer, store, fmp, av=av)
+
+
+def rebackfill_all(
+    cfg: Config,
+    edgar: EdgarClient,
+    producer: KafkaProducer,
+    store: ProcessedStore,
+    fmp: Optional[FmpClient],
+    av: Optional[AlphaVantageClient] = None,
+) -> None:
+    """Force a full re-backfill for every tracked ticker.
+
+    Iterates cfg.tickers plus all user watchlist tickers, calling
+    rebackfill_one for each in sequence so EDGAR is not hammered in
+    parallel.  Each rebackfill_one still spawns its own historical
+    backfill daemon thread, so multiple tickers make progress concurrently
+    in the background while this loop advances to the next ticker.
+    """
+    watchlist_tickers = store.get_watchlist_tickers()
+    recent_tickers    = store.get_recent_reaction_tickers(lookback_days=90)
+    all_tickers = sorted(set(cfg.tickers) | watchlist_tickers | recent_tickers)
+    logger.info("Bulk re-backfill: starting %d tickers — %s", len(all_tickers), all_tickers)
+    for ticker in all_tickers:
+        try:
+            rebackfill_one(ticker, cfg, edgar, producer, store, fmp, av=av)
+        except Exception as exc:
+            logger.error("Bulk re-backfill: %s failed — %s", ticker, exc)
+    logger.info("Bulk re-backfill: all tickers submitted")
+
+
 # ── Stale-price refresh job ──────────────────────────────────────────────────
 
 _REFRESH_BATCH = 30   # max records per run to avoid hammering yfinance
@@ -532,11 +612,15 @@ def main() -> None:
     )
 
     # ── HTTP trigger API (Flask owns the main thread) ─────────────────────────
-    # Bind ingest_one with all shared objects so the API only needs the ticker.
+    # Bind both callables with all shared objects so each only needs the ticker.
     _ingest_one = partial(ingest_one, cfg=cfg, edgar=edgar,
                           producer=producer, store=store, fmp=fmp, av=av)
+    _rebackfill_one = partial(rebackfill_one, cfg=cfg, edgar=edgar,
+                               producer=producer, store=store, fmp=fmp, av=av)
+    _rebackfill_all = partial(rebackfill_all, cfg=cfg, edgar=edgar,
+                               producer=producer, store=store, fmp=fmp, av=av)
 
-    app = create_app(_ingest_one)
+    app = create_app(_ingest_one, rebackfill_one=_rebackfill_one, rebackfill_all=_rebackfill_all)
     logger.info("HTTP trigger API listening on :8001")
     try:
         app.run(host="0.0.0.0", port=8001, threaded=True)
