@@ -36,13 +36,22 @@ TOPIC_OUT = "scored-transcripts"
 # ── MongoDB helpers ───────────────────────────────────────────────────────────
 
 def _already_scored(db, filing_id: str) -> bool:
-    return db.scores.find_one({"filing_id": filing_id}) is not None
+    if not filing_id:
+        return False  # No stable key — always process to avoid silently dropping messages
+    doc = db.scores.find_one({"filing_id": filing_id})
+    if doc is None:
+        return False
+    # Re-score if the record pre-dates the extended prompt (trade_brief absent)
+    # or was mock-injected and is waiting for real Claude data.
+    return "trade_brief" in doc and not doc.get("_mock")
 
 
 def _save_score(db, filing_id: str, ticker: str, call_date: str,
-                score: int, phrases: list, model: str, scored_at: str) -> None:
+                score: int, phrases: list, model: str, scored_at: str,
+                guidance_flag, trade_brief, qa_defensiveness) -> None:
+    query = {"filing_id": filing_id} if filing_id else {"ticker": ticker, "call_date": call_date}
     db.scores.update_one(
-        {"filing_id": filing_id},
+        query,
         {
             "$set": {
                 "filing_id": filing_id,
@@ -50,9 +59,13 @@ def _save_score(db, filing_id: str, ticker: str, call_date: str,
                 "call_date": call_date,
                 "confidence_score": score,
                 "key_phrases": phrases,
+                "guidance_flag": guidance_flag,
+                "trade_brief": trade_brief,
+                "qa_defensiveness": qa_defensiveness,
                 "model_used": model,
                 "scored_at": scored_at,
-            }
+            },
+            "$unset": {"_mock": ""},
         },
         upsert=True,
     )
@@ -122,6 +135,13 @@ def main() -> None:
                 consumer.commit()  # malformed model response — skip, don't retry forever
                 continue
             except Exception as exc:
+                err_str = str(exc)
+                if "credit balance is too low" in err_str or "insufficient_quota" in err_str:
+                    # Commit and skip — queue drains cleanly. Run rebackfill-all once
+                    # credits are restored and everything will be re-scored.
+                    logger.warning("Anthropic credits depleted — skipping %s, run rebackfill-all after topping up", filing_id)
+                    consumer.commit()
+                    continue
                 logger.error("Scoring failed for %s [%s]: %s", ticker, filing_id, exc)
                 # Don't commit — will retry on service restart
                 continue
@@ -139,6 +159,9 @@ def main() -> None:
                 "ingested_at": msg.get("ingested_at", ""),
                 "confidence_score": result["confidence_score"],
                 "key_phrases": result["key_phrases"],
+                "guidance_flag": result["guidance_flag"],
+                "trade_brief": result["trade_brief"],
+                "qa_defensiveness": result["qa_defensiveness"],
                 "model_used": cfg.model,
                 "scored_at": scored_at,
             }
@@ -162,6 +185,7 @@ def main() -> None:
                     db, filing_id, ticker, call_date,
                     result["confidence_score"], result["key_phrases"],
                     cfg.model, scored_at,
+                    result["guidance_flag"], result["trade_brief"], result["qa_defensiveness"],
                 )
             except Exception as exc:
                 logger.error("MongoDB write failed for %s: %s", filing_id, exc)
