@@ -112,6 +112,9 @@ export default function PredictabilityScatter({ calls }) {
   const x0 = Math.max(0, Math.min(...xs) - 5);
   const x1 = Math.min(100, Math.max(...xs) + 5);
 
+  const latestScore = calls[0]?.confidence_score;
+  const predictedReturn = latestScore != null ? m * latestScore + b : null;
+
   const rAbs = Math.abs(r);
   const rColor = rAbs >= 0.5
     ? (r >= 0 ? 'text-emerald-600' : 'text-red-600')
@@ -139,7 +142,7 @@ export default function PredictabilityScatter({ calls }) {
         </div>
       </div>
 
-      <div className="flex items-baseline gap-5 mb-4">
+      <div className="flex items-baseline gap-5 mb-3 flex-wrap">
         <div>
           <span className="text-[10px] text-slate-400 uppercase tracking-widest">Pearson r</span>
           <Hint text="Correlation between CEO confidence score and stock return (−1 to +1). Closer to ±1 = stronger relationship. Positive = higher confidence tends to mean higher return." />
@@ -155,6 +158,16 @@ export default function PredictabilityScatter({ calls }) {
           <span className="ml-1.5 text-sm font-mono tabular-nums text-slate-600">{valid.length}</span>
         </div>
       </div>
+
+      {predictedReturn != null && latestScore != null && (
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg w-fit text-[11px] text-slate-600">
+          <span className="text-slate-400 uppercase tracking-widest text-[9px] font-semibold">Predicted ({period})</span>
+          <span className="font-mono font-semibold text-slate-800">
+            Score {latestScore} → {predictedReturn >= 0 ? '+' : ''}{predictedReturn.toFixed(1)}%
+          </span>
+          <Hint text={`Based on the linear regression of ${valid.length} historical calls. Prediction quality depends on R² — low R² means high uncertainty.`} />
+        </div>
+      )}
 
       <ResponsiveContainer width="100%" height={220}>
         <ScatterChart margin={{ top: 5, right: 16, left: -10, bottom: 10 }}>

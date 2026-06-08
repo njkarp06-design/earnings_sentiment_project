@@ -74,7 +74,7 @@ router.get('/:ticker/accuracy', async (req, res, next) => {
     // Deduplicate by call_date before bucketing so cross-source duplicates
     // don't inflate counts or skew averages.
     const rawItems = await PriceReaction.aggregate([
-      { $match: { ticker, return_7d: { $ne: null } } },
+      { $match: { ticker, return_7d: { $ne: null }, confidence_score: { $ne: null } } },
       { $addFields: { _name_quality: { $cond: [{ $ne: ['$company_name', '$ticker'] }, 1, 0] } } },
       { $sort: { call_date: -1, _name_quality: -1, correlated_at: -1 } },
       {
@@ -125,11 +125,30 @@ router.get('/:ticker/accuracy', async (req, res, next) => {
 });
 
 function summarise(arr, avg) {
+  const returns7d = arr.map(i => i.return_7d).filter(v => v != null);
+  const wins  = returns7d.filter(v => v > 0);
+  const losses = returns7d.filter(v => v <= 0);
+  const win_rate_7d = returns7d.length
+    ? parseFloat(((wins.length / returns7d.length) * 100).toFixed(1))
+    : null;
+  const avg_win_7d  = wins.length
+    ? parseFloat((wins.reduce((a, b) => a + b, 0) / wins.length).toFixed(2))
+    : null;
+  const avg_loss_7d = losses.length
+    ? parseFloat((losses.reduce((a, b) => a + b, 0) / losses.length).toFixed(2))
+    : null;
+  const ev_7d = win_rate_7d != null
+    ? parseFloat(((win_rate_7d / 100) * (avg_win_7d ?? 0) + (1 - win_rate_7d / 100) * (avg_loss_7d ?? 0)).toFixed(2))
+    : null;
   return {
     count:         arr.length,
     avg_return_1d: avg(arr, 'return_1d'),
     avg_return_3d: avg(arr, 'return_3d'),
     avg_return_7d: avg(arr, 'return_7d'),
+    win_rate_7d,
+    avg_win_7d,
+    avg_loss_7d,
+    ev_7d,
   };
 }
 
@@ -154,6 +173,29 @@ router.post('/:ticker/ingest', requireAuth, async (req, res, next) => {
     res.json(data);
   } catch (err) {
     // Ingestor not reachable (e.g. running outside Docker) — fail gracefully.
+    if (err.name === 'TimeoutError' || err.code === 'ECONNREFUSED') {
+      return res.status(503).json({ error: 'Ingestor unavailable' });
+    }
+    next(err);
+  }
+});
+
+// POST /companies/rebackfill
+// Auth-protected. Triggers a full re-ingest of all tracked tickers so existing
+// records get re-scored with the latest prompt (picks up guidance_flag,
+// trade_brief, qa_defensiveness for records that pre-date those fields).
+router.post('/rebackfill', requireAuth, async (req, res, next) => {
+  try {
+    const response = await fetch(`${INGESTOR_URL}/rebackfill-all`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) {
+      return res.status(502).json({ error: 'Ingestor rebackfill-all failed' });
+    }
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
     if (err.name === 'TimeoutError' || err.code === 'ECONNREFUSED') {
       return res.status(503).json({ error: 'Ingestor unavailable' });
     }
