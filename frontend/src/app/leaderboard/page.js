@@ -53,6 +53,12 @@ export default function LeaderboardPage() {
         <p className="text-slate-500 mt-1 text-sm">
           Companies ranked by average 7-day post-call return · click any row for drift chart
         </p>
+        <div className="flex items-center gap-4 mt-3">
+          <span className="text-[10px] text-slate-400 uppercase tracking-widest">CEO Confidence:</span>
+          <span className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-600"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />≥70 High</span>
+          <span className="flex items-center gap-1.5 text-[10px] font-mono text-amber-600"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />45–69 Moderate</span>
+          <span className="flex items-center gap-1.5 text-[10px] font-mono text-red-600"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />&lt;45 Low</span>
+        </div>
       </div>
 
       {loading && <SkeletonTable />}
@@ -73,11 +79,17 @@ export default function LeaderboardPage() {
                 <th className="px-4 py-3 text-left text-[10px] text-slate-400 uppercase tracking-widest w-12">#</th>
                 <th className="px-4 py-3 text-left text-[10px] text-slate-400 uppercase tracking-widest">Company</th>
                 <th className="px-4 py-3 text-center text-[10px] text-slate-400 uppercase tracking-widest">Calls</th>
-                <th className="px-4 py-3 text-center text-[10px] text-slate-400 uppercase tracking-widest">Avg Score</th>
+                <th className="px-4 py-3 text-center text-[10px] text-slate-400 uppercase tracking-widest">
+                  <div>Avg Score</div>
+                  <div className="text-[8px] normal-case tracking-normal font-normal text-slate-300 mt-0.5">AI confidence 0–100</div>
+                </th>
                 <th className="px-4 py-3 text-center text-[10px] text-slate-400 uppercase tracking-widest">Avg 1d</th>
                 <th className="px-4 py-3 text-center text-[10px] text-slate-400 uppercase tracking-widest">Avg 3d</th>
                 <th className="px-4 py-3 text-center text-[10px] text-slate-400 uppercase tracking-widest">Avg 7d</th>
-                <th className="px-4 py-3 text-center text-[10px] text-slate-400 uppercase tracking-widest">Win Rate</th>
+                <th className="px-4 py-3 text-center text-[10px] text-slate-400 uppercase tracking-widest">
+                  <div>Win Rate</div>
+                  <div className="text-[8px] normal-case tracking-normal font-normal text-slate-300 mt-0.5">% positive at 7d</div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">

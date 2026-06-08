@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import SearchOverlay from '@/components/SearchOverlay';
-import Link from 'next/link';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -125,7 +124,7 @@ function SectorCard({ sector, selected, onClick }) {
             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
             : 'bg-red-50 text-red-700 border-red-200',
         )}>
-          {Math.round(sector.win_rate * 100)}% win
+          {Math.round(sector.win_rate * 100)}% positive
         </span>
       </div>
 
@@ -164,14 +163,18 @@ function SectorDetail({ sector, detail, loading, onCompanyClick }) {
               Aggregate post-earnings drift · all companies in sector
             </p>
           </div>
-          {detail && (
-            <div className="flex items-center gap-6">
-              <Stat label="Avg 7d" value={fmtPct(calcAvg(detail.companies, 'avg_7d'))} color={pctColor(calcAvg(detail.companies, 'avg_7d'))} />
-              <Stat label="Win Rate" value={`${Math.round(calcWinRate(detail.companies) * 100)}%`} color={winColor(calcWinRate(detail.companies))} />
-              <Stat label="Companies" value={detail.companies.length} />
-              <Stat label="Total Calls" value={detail.companies.reduce((a, c) => a + c.call_count, 0)} />
-            </div>
-          )}
+          {detail && (() => {
+            const avg7d = calcAvg(detail.companies, 'avg_7d');
+            const wr    = calcWinRate(detail.companies);
+            return (
+              <div className="flex items-center gap-6">
+                <Stat label="Avg 7d" value={fmtPct(avg7d)} color={pctColor(avg7d)} />
+                <Stat label="Win Rate" hint="% of earnings calls where the stock closed positive on day 7" value={wr != null ? `${Math.round(wr * 100)}%` : '—'} color={winColor(wr)} />
+                <Stat label="Companies" value={detail.companies.length} />
+                <Stat label="Total Calls" value={detail.companies.reduce((a, c) => a + c.call_count, 0)} />
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -185,16 +188,16 @@ function SectorDetail({ sector, detail, loading, onCompanyClick }) {
           <div className="px-4 pt-4 pb-2">
             <div className="flex items-center justify-between mb-3 px-2">
               <span className="text-[10px] text-slate-400 uppercase tracking-widest">
-                Avg price path D0 → D7
+                Avg price path · day 0 → day 7 post-call
               </span>
               <div className="flex items-center gap-3 text-[10px] text-slate-500 font-mono">
                 <span className="flex items-center gap-1.5">
                   <span className="w-4 border-t-[2px] border-blue-600 inline-block" />
                   Sector avg
                 </span>
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1.5" title="±1 standard deviation — the typical spread of returns across companies in this sector">
                   <span className="w-4 h-2 rounded-sm inline-block bg-blue-600/10 border border-blue-600/20" />
-                  ±1σ
+                  ±1 std dev
                 </span>
               </div>
             </div>
@@ -217,7 +220,10 @@ function SectorDetail({ sector, detail, loading, onCompanyClick }) {
                       <th className="px-4 py-2 text-center text-[10px] text-slate-400 uppercase tracking-widest">Avg 1d</th>
                       <th className="px-4 py-2 text-center text-[10px] text-slate-400 uppercase tracking-widest">Avg 3d</th>
                       <th className="px-4 py-2 text-center text-[10px] text-slate-400 uppercase tracking-widest">Avg 7d</th>
-                      <th className="px-4 py-2 text-center text-[10px] text-slate-400 uppercase tracking-widest">Win Rate</th>
+                      <th className="px-4 py-2 text-center text-[10px] text-slate-400 uppercase tracking-widest">
+                        <div>Win Rate</div>
+                        <div className="text-[8px] normal-case tracking-normal font-normal text-slate-300 mt-0.5">% positive at 7d</div>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -254,23 +260,38 @@ function SectorDetail({ sector, detail, loading, onCompanyClick }) {
   );
 }
 
-function Stat({ label, value, color }) {
+function Stat({ label, hint, value, color }) {
   return (
     <div className="text-right">
-      <div className="text-[10px] text-slate-400 uppercase tracking-widest mb-0.5">{label}</div>
+      <div
+        className="text-[10px] text-slate-400 uppercase tracking-widest mb-0.5 cursor-default"
+        title={hint ?? undefined}
+      >
+        {label}
+      </div>
       <div className={clsx('text-sm font-mono font-semibold tabular-nums', color ?? 'text-slate-800')}>{value}</div>
     </div>
   );
 }
 
 function calcAvg(companies, field) {
-  const vals = companies.map(c => c[field]).filter(v => v != null);
-  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  let totalCalls = 0, totalVal = 0;
+  for (const c of companies) {
+    if (c[field] == null || !c.call_count) continue;
+    totalCalls += c.call_count;
+    totalVal   += c[field] * c.call_count;
+  }
+  return totalCalls > 0 ? totalVal / totalCalls : null;
 }
 
 function calcWinRate(companies) {
-  const vals = companies.map(c => c.win_rate).filter(v => v != null);
-  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  let totalCalls = 0, totalWins = 0;
+  for (const c of companies) {
+    if (c.win_rate == null || !c.call_count) continue;
+    totalCalls += c.call_count;
+    totalWins  += Math.round(c.win_rate * c.call_count);
+  }
+  return totalCalls > 0 ? totalWins / totalCalls : null;
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
