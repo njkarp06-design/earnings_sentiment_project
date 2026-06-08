@@ -1,6 +1,7 @@
-const router  = require('express').Router();
-const jwt     = require('jsonwebtoken');
-const User    = require('../models/User');
+const router        = require('express').Router();
+const jwt           = require('jsonwebtoken');
+const User          = require('../models/User');
+const PriceReaction = require('../models/PriceReaction');
 
 const FMP_BASE      = 'https://financialmodelingprep.com/stable';
 const FMP_API_KEY   = process.env.FMP_API_KEY || '';
@@ -59,7 +60,7 @@ router.get('/', async (req, res, next) => {
     const data = await fmpRes.json();
     if (!Array.isArray(data)) return res.json([]);
 
-    // ── Enrich + sort ─────────────────────────────────────────────────────────
+    // ── Base enrichment ───────────────────────────────────────────────────────
     const enriched = data.map(item => {
       const ticker = (item.symbol || '').toUpperCase();
       const inPortfolio = portfolioTickers.has(ticker);
@@ -71,12 +72,57 @@ router.get('/', async (req, res, next) => {
         eps_estimate:     item.epsEstimated     ?? null,
         revenue_estimate: item.revenueEstimated ?? null,
         tracked:          inPortfolio || inSystem,
-        // 'portfolio' → user's own watchlist  |  'system' → server TICKERS  |  null → neither
         source: inPortfolio ? 'portfolio' : inSystem ? 'system' : null,
       };
     });
 
-    // Sort: portfolio first → system tracked → the rest; within each group by date
+    // ── Historical stats from MongoDB for tracked tickers ─────────────────────
+    const trackedTickers = [...new Set(enriched.filter(e => e.tracked).map(e => e.ticker))];
+
+    if (trackedTickers.length > 0) {
+      const stats = await PriceReaction.aggregate([
+        { $match: { ticker: { $in: trackedTickers }, return_7d: { $ne: null }, confidence_score: { $ne: null } } },
+        // Deduplicate by (ticker, call_date) — same logic as the /history endpoint —
+        // so EDGAR+FMP duplicates for the same quarter aren't double-counted.
+        { $addFields: { _name_quality: { $cond: [{ $ne: ['$company_name', '$ticker'] }, 1, 0] } } },
+        { $sort: { call_date: -1, _name_quality: -1, correlated_at: -1 } },
+        {
+          $group: {
+            _id: { ticker: '$ticker', call_date: '$call_date' },
+            confidence_score: { $first: '$confidence_score' },
+            return_7d:        { $first: '$return_7d' },
+          },
+        },
+        {
+          $group: {
+            _id: '$_id.ticker',
+            avg_score:     { $avg: '$confidence_score' },
+            avg_return_7d: { $avg: '$return_7d' },
+            total:         { $sum: 1 },
+            wins:          { $sum: { $cond: [{ $gt: ['$return_7d', 0] }, 1, 0] } },
+          },
+        },
+      ]);
+
+      const statsMap = {};
+      for (const s of stats) {
+        statsMap[s._id] = {
+          avg_score:    parseFloat(s.avg_score.toFixed(0)),
+          avg_return_7d: parseFloat(s.avg_return_7d.toFixed(2)),
+          win_rate_7d:  s.total > 0
+            ? parseFloat(((s.wins / s.total) * 100).toFixed(1))
+            : null,
+        };
+      }
+
+      for (const item of enriched) {
+        if (statsMap[item.ticker]) {
+          Object.assign(item, statsMap[item.ticker]);
+        }
+      }
+    }
+
+    // ── Sort: portfolio first → system tracked → the rest; within group by date ─
     const rank = (s) => s === 'portfolio' ? 0 : s === 'system' ? 1 : 2;
     enriched.sort((a, b) => {
       const r = rank(a.source) - rank(b.source);
