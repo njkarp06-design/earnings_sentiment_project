@@ -101,6 +101,7 @@ router.patch('/preferences', requireAuth, async (req, res, next) => {
       { $set: update },
       { new: true },
     ).select('email notifications_enabled notifications_email');
+    if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({
       email:                  user.email,
       notifications_enabled:  user.notifications_enabled ?? false,
