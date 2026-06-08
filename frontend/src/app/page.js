@@ -87,8 +87,8 @@ export default function DashboardPage() {
             setItems(fresh);
           } else if (fresh.length > 0) {
             setItems(prev => {
-              const existingIds = new Set(prev.map(i => i.filing_id));
-              const newItems = fresh.filter(i => !existingIds.has(i.filing_id));
+              const existingIds = new Set(prev.map(i => i.filing_id ?? `${i.ticker}-${i.call_date}`));
+              const newItems = fresh.filter(i => !existingIds.has(i.filing_id ?? `${i.ticker}-${i.call_date}`));
               return newItems.length > 0 ? [...newItems, ...prev] : prev;
             });
           }
