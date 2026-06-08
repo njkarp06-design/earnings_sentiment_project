@@ -48,7 +48,8 @@ router.get('/', async (req, res, next) => {
     }
 
     const fmpRes = await fetch(
-      `${FMP_BASE}/earnings-calendar?from=${from}&to=${to}&apikey=${FMP_API_KEY}`
+      `${FMP_BASE}/earnings-calendar?from=${from}&to=${to}&apikey=${FMP_API_KEY}`,
+      { signal: AbortSignal.timeout(15_000) },
     );
 
     if (!fmpRes.ok) {
@@ -84,6 +85,9 @@ router.get('/', async (req, res, next) => {
 
     res.json(enriched);
   } catch (err) {
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+      return res.status(504).json({ error: 'FMP API timed out' });
+    }
     next(err);
   }
 });

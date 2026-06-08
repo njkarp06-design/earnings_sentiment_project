@@ -75,7 +75,8 @@ router.get('/:ticker/accuracy', async (req, res, next) => {
     // don't inflate counts or skew averages.
     const rawItems = await PriceReaction.aggregate([
       { $match: { ticker, return_7d: { $ne: null } } },
-      { $sort: { correlated_at: -1 } },
+      { $addFields: { _name_quality: { $cond: [{ $ne: ['$company_name', '$ticker'] }, 1, 0] } } },
+      { $sort: { call_date: -1, _name_quality: -1, correlated_at: -1 } },
       {
         $group: {
           _id: '$call_date',
