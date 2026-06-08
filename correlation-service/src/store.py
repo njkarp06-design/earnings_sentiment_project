@@ -89,13 +89,28 @@ def get_company_sector(db, ticker: str) -> str | None:
 
 
 def already_correlated(db, filing_id: str) -> bool:
-    return db.price_reactions.find_one({"filing_id": filing_id}) is not None
+    if not filing_id:
+        return False  # No stable key — always process to avoid silently dropping messages
+    doc = db.price_reactions.find_one({"filing_id": filing_id})
+    if doc is None:
+        return False
+    # Re-correlate if the record pre-dates the extended scorer prompt (trade_brief absent)
+    # or was mock-injected and is waiting for real Claude data.
+    return "trade_brief" in doc and not doc.get("_mock")
 
 
 def upsert_price_reaction(db, doc: dict) -> None:
+    filing_id = doc.get("filing_id")
+    # Fall back to (ticker, call_date) key when filing_id is absent so FMP records
+    # without an EDGAR filing_id don't overwrite each other on the same empty key.
+    query = (
+        {"filing_id": filing_id}
+        if filing_id
+        else {"ticker": doc["ticker"], "call_date": doc["call_date"]}
+    )
     db.price_reactions.update_one(
-        {"filing_id": doc["filing_id"]},
-        {"$set": doc},
+        query,
+        {"$set": doc, "$unset": {"_mock": ""}},
         upsert=True,
     )
 
