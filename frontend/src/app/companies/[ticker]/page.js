@@ -34,6 +34,51 @@ function scoreTextColor(score) {
   return 'text-red-600';
 }
 
+const GUIDANCE_CONFIG = {
+  raised:     { label: '↑ Raised',     cls: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+  maintained: { label: '→ Maintained', cls: 'text-slate-600 bg-slate-50 border-slate-200' },
+  lowered:    { label: '↓ Lowered',    cls: 'text-red-700 bg-red-50 border-red-200' },
+  withdrawn:  { label: '⊘ Withdrawn',  cls: 'text-amber-700 bg-amber-50 border-amber-200' },
+};
+
+function GuidanceBadge({ flag }) {
+  const cfg = GUIDANCE_CONFIG[flag];
+  if (!cfg) return null;
+  return (
+    <span className={clsx('text-[10px] font-semibold px-2 py-0.5 rounded-full border', cfg.cls)}>
+      {cfg.label}
+    </span>
+  );
+}
+
+function QABadge({ score }) {
+  if (score == null || score <= 3) return null;
+  const label = score >= 7 ? 'Q&A: Defensive' : 'Q&A: Cautious';
+  const cls   = score >= 7
+    ? 'text-red-700 bg-red-50 border-red-200'
+    : 'text-amber-700 bg-amber-50 border-amber-200';
+  return (
+    <span className={clsx('text-[10px] font-semibold px-2 py-0.5 rounded-full border', cls)}>
+      {label}
+    </span>
+  );
+}
+
+function TradeBrief({ brief, guidanceFlag }) {
+  if (!brief) return null;
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 mb-6">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[10px] font-semibold text-blue-700 uppercase tracking-widest">
+          Trade Brief
+        </span>
+        {guidanceFlag && <GuidanceBadge flag={guidanceFlag} />}
+      </div>
+      <p className="text-sm text-slate-700 leading-relaxed">{brief}</p>
+    </div>
+  );
+}
+
 function StatChip({ label, hint, value, scoreColored, positive }) {
   let valueClass = 'text-slate-800 font-mono tabular-nums';
   if (scoreColored && value != null) valueClass = clsx('font-mono font-semibold tabular-nums', scoreTextColor(value));
@@ -263,6 +308,12 @@ export default function CompanyPage({ params }) {
         )}
       </div>
 
+      {/* ── Trade Brief ─────────────────────────────────────────── */}
+      <TradeBrief
+        brief={latestCall?.trade_brief}
+        guidanceFlag={latestCall?.guidance_flag}
+      />
+
       {/* ── Score history chart ──────────────────────────────────── */}
       {history.length >= 2 && (
         <div className="bg-white border border-slate-200 rounded-xl p-5 mb-6 shadow-sm">
@@ -306,6 +357,21 @@ function fmtReturn(val) {
   );
 }
 
+function fmtPct(val) {
+  if (val == null) return <span className="text-slate-400">—</span>;
+  return <span className="font-mono tabular-nums text-slate-600">{val.toFixed(1)}%</span>;
+}
+
+function fmtEV(val) {
+  if (val == null) return <span className="text-slate-400">—</span>;
+  const pos = val >= 0;
+  return (
+    <span className={`font-mono font-semibold tabular-nums ${pos ? 'text-emerald-600' : 'text-red-600'}`}>
+      {pos ? '+' : ''}{val.toFixed(2)}%
+    </span>
+  );
+}
+
 function TrackRecord({ accuracy }) {
   const BUCKET_LABELS = { high: 'Score ≥70', mid: 'Score 45–70', low: 'Score <45' };
   const BUCKET_COLORS = { high: 'text-emerald-600', mid: 'text-amber-600', low: 'text-red-600' };
@@ -328,6 +394,14 @@ function TrackRecord({ accuracy }) {
               <th className="text-center py-2.5 font-medium">Avg 1d</th>
               <th className="text-center py-2.5 font-medium">Avg 3d</th>
               <th className="text-center py-2.5 font-medium">Avg 7d</th>
+              <th className="text-center py-2.5 font-medium">
+                Win %
+                <Hint text="Percentage of calls in this score range where the 7-day return was positive." />
+              </th>
+              <th className="text-center py-2.5 font-medium">
+                EV (7d)
+                <Hint text="Expected Value = (Win% × Avg Win) + (Loss% × Avg Loss). Positive EV means this score range has historically been worth trading." />
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -340,6 +414,8 @@ function TrackRecord({ accuracy }) {
                 <td className="py-2 text-center tabular-nums">{fmtReturn(b.avg_return_1d)}</td>
                 <td className="py-2 text-center tabular-nums">{fmtReturn(b.avg_return_3d)}</td>
                 <td className="py-2 text-center tabular-nums">{fmtReturn(b.avg_return_7d)}</td>
+                <td className="py-2 text-center tabular-nums">{fmtPct(b.win_rate_7d)}</td>
+                <td className="py-2 text-center tabular-nums">{fmtEV(b.ev_7d)}</td>
               </tr>
             ))}
           </tbody>
@@ -354,8 +430,12 @@ function CallCard({ item }) {
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <span className="font-medium text-slate-800">{fmtDate(item.call_date)}</span>
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-slate-800">{fmtDate(item.call_date)}</span>
+          <GuidanceBadge flag={item.guidance_flag} />
+          <QABadge score={item.qa_defensiveness} />
+        </div>
         <div className="flex items-center gap-2">
           {item.model_used && (
             <span className="text-[10px] text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full">

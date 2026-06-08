@@ -12,8 +12,10 @@ function fmtDate(str) {
 }
 
 function daysUntil(dateStr) {
-  const diff = new Date(dateStr + 'T12:00:00') - new Date();
-  const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+  const eventMidnight = new Date(dateStr + 'T00:00:00');
+  const days = Math.round((eventMidnight - todayMidnight) / (1000 * 60 * 60 * 24));
   if (days === 0) return 'Today';
   if (days === 1) return 'Tomorrow';
   if (days < 0)  return null;
@@ -26,6 +28,22 @@ function fmtNum(n) {
   if (abs >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
   if (abs >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
   return `$${n.toFixed(2)}`;
+}
+
+function fmtReturn(val) {
+  if (val == null) return '—';
+  const pos = val >= 0;
+  return (
+    <span className={`font-mono tabular-nums ${pos ? 'text-emerald-600' : 'text-red-600'}`}>
+      {pos ? '+' : ''}{val.toFixed(2)}%
+    </span>
+  );
+}
+
+function fmtScore(val) {
+  if (val == null) return '—';
+  const cls = val >= 70 ? 'text-emerald-600' : val >= 45 ? 'text-amber-600' : 'text-red-600';
+  return <span className={`font-mono font-semibold tabular-nums ${cls}`}>{val}</span>;
 }
 
 export default function CalendarPage() {
@@ -157,6 +175,7 @@ function SourceBadge({ source }) {
 }
 
 function EventTable({ events }) {
+  const hasHistory = events.some(e => e.avg_score != null);
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
       <table className="w-full text-sm">
@@ -166,6 +185,11 @@ function EventTable({ events }) {
             <th className="text-left px-5 py-3 font-medium">Ticker</th>
             <th className="text-right px-5 py-3 font-medium">EPS Est.</th>
             <th className="text-right px-5 py-3 font-medium">Rev. Est.</th>
+            {hasHistory && <>
+              <th className="text-right px-5 py-3 font-medium">Avg Score</th>
+              <th className="text-right px-5 py-3 font-medium">Avg 7d</th>
+              <th className="text-right px-5 py-3 font-medium">Win %</th>
+            </>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
@@ -198,6 +222,13 @@ function EventTable({ events }) {
                 <td className="px-5 py-3 text-right text-slate-600 font-mono tabular-nums">
                   {fmtNum(e.revenue_estimate)}
                 </td>
+                {hasHistory && <>
+                  <td className="px-5 py-3 text-right">{fmtScore(e.avg_score)}</td>
+                  <td className="px-5 py-3 text-right">{fmtReturn(e.avg_return_7d)}</td>
+                  <td className="px-5 py-3 text-right text-slate-600 font-mono tabular-nums">
+                    {e.win_rate_7d != null ? `${e.win_rate_7d}%` : '—'}
+                  </td>
+                </>}
               </tr>
             );
           })}
