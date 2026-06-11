@@ -243,3 +243,6 @@ infra/terraform/*.tfstate.backup
 Thumbs.db
 *.swp
 *.swo
+
+# Generated presentation binary
+*.pptx
