@@ -1,3 +1,12 @@
+// ─── Dynamic date helpers (run in the browser at page-load time) ──────────────
+// new Date() here evaluates when the JS bundle is executed client-side,
+// so these always reflect the visitor's current date — not the build date.
+const _now      = Date.now();
+const _day      = 864e5;
+const today     = new Date(_now).toISOString().slice(0, 10);
+const daysAgo   = n => new Date(_now - n * _day).toISOString().slice(0, 10);
+const daysAhead = n => new Date(_now + n * _day).toISOString().slice(0, 10);
+
 // ─── Seeded PRNG ─────────────────────────────────────────────────────────────
 
 function hashCode(str) {
@@ -109,25 +118,30 @@ const LOW_BRIEFS = [
 ];
 
 // ─── Company definitions ─────────────────────────────────────────────────────
-// { ticker, name, sector, basePrice, mean, std, drift, anchor }
-// drift > 0 = scores trending up (more recent = higher); < 0 = trending down
+// anchor = most-recent call date (index 0 in history)
+// Live tab  → anchor = today      (call within last 24h)
+// Week tab  → anchor = daysAgo(2–6)  (call within last 7 days)
+// Earlier   → anchor = fixed past date (>7 days ago)
 const COMPANY_DEFS = [
-  { ticker: 'NVDA',  name: 'NVIDIA Corporation',      sector: 'Technology',             basePrice: 475, mean: 83, std: 7,  drift: 0.8,  anchor: '2026-02-26' },
-  { ticker: 'META',  name: 'Meta Platforms',           sector: 'Technology',             basePrice: 508, mean: 79, std: 8,  drift: 0.5,  anchor: '2026-04-30' },
-  { ticker: 'MSFT',  name: 'Microsoft Corporation',    sector: 'Technology',             basePrice: 415, mean: 78, std: 7,  drift: 0.3,  anchor: '2026-04-30' },
-  { ticker: 'GOOGL', name: 'Alphabet Inc.',            sector: 'Technology',             basePrice: 173, mean: 72, std: 9,  drift: 0.1,  anchor: '2026-04-29' },
-  { ticker: 'AAPL',  name: 'Apple Inc.',               sector: 'Technology',             basePrice: 192, mean: 74, std: 8,  drift: 0.0,  anchor: '2026-05-01' },
+  // Live
+  { ticker: 'NVDA',  name: 'NVIDIA Corporation',      sector: 'Technology',             basePrice: 475, mean: 83, std: 7,  drift: 0.8,  anchor: today },
+  { ticker: 'META',  name: 'Meta Platforms',           sector: 'Technology',             basePrice: 508, mean: 79, std: 8,  drift: 0.5,  anchor: today },
+  { ticker: 'MSFT',  name: 'Microsoft Corporation',    sector: 'Technology',             basePrice: 415, mean: 78, std: 7,  drift: 0.3,  anchor: today },
+  // This Week
+  { ticker: 'GOOGL', name: 'Alphabet Inc.',            sector: 'Technology',             basePrice: 173, mean: 72, std: 9,  drift: 0.1,  anchor: daysAgo(2) },
+  { ticker: 'AAPL',  name: 'Apple Inc.',               sector: 'Technology',             basePrice: 192, mean: 74, std: 8,  drift: 0.0,  anchor: daysAgo(3) },
+  { ticker: 'JPM',   name: 'JPMorgan Chase',           sector: 'Financial Services',     basePrice: 203, mean: 70, std: 8,  drift: 0.1,  anchor: daysAgo(4) },
+  { ticker: 'TSLA',  name: 'Tesla',                    sector: 'Consumer Discretionary', basePrice: 218, mean: 58, std: 15, drift: 0.0,  anchor: daysAgo(5) },
+  { ticker: 'NFLX',  name: 'Netflix',                  sector: 'Consumer Discretionary', basePrice: 638, mean: 70, std: 10, drift: 0.4,  anchor: daysAgo(6) },
+  // Earlier
   { ticker: 'AMD',   name: 'Advanced Micro Devices',   sector: 'Technology',             basePrice: 143, mean: 70, std: 10, drift: 0.3,  anchor: '2026-02-04' },
   { ticker: 'INTC',  name: 'Intel Corporation',        sector: 'Technology',             basePrice: 21,  mean: 44, std: 12, drift: -0.6, anchor: '2026-01-28' },
   { ticker: 'CRWD',  name: 'CrowdStrike Holdings',     sector: 'Technology',             basePrice: 353, mean: 75, std: 8,  drift: 0.4,  anchor: '2026-03-04' },
-  { ticker: 'JPM',   name: 'JPMorgan Chase',           sector: 'Financial Services',     basePrice: 203, mean: 70, std: 8,  drift: 0.1,  anchor: '2026-04-11' },
   { ticker: 'GS',    name: 'Goldman Sachs',            sector: 'Financial Services',     basePrice: 508, mean: 65, std: 10, drift: 0.0,  anchor: '2026-04-14' },
   { ticker: 'BAC',   name: 'Bank of America',          sector: 'Financial Services',     basePrice: 41,  mean: 63, std: 9,  drift: 0.0,  anchor: '2026-04-15' },
   { ticker: 'JNJ',   name: 'Johnson & Johnson',        sector: 'Healthcare',             basePrice: 153, mean: 66, std: 8,  drift: 0.0,  anchor: '2026-04-15' },
   { ticker: 'UNH',   name: 'UnitedHealth Group',       sector: 'Healthcare',             basePrice: 512, mean: 70, std: 8,  drift: -0.2, anchor: '2026-04-15' },
   { ticker: 'PFE',   name: 'Pfizer',                   sector: 'Healthcare',             basePrice: 27,  mean: 52, std: 11, drift: -0.5, anchor: '2026-04-29' },
-  { ticker: 'TSLA',  name: 'Tesla',                    sector: 'Consumer Discretionary', basePrice: 218, mean: 58, std: 15, drift: 0.0,  anchor: '2026-04-22' },
-  { ticker: 'NFLX',  name: 'Netflix',                  sector: 'Consumer Discretionary', basePrice: 638, mean: 70, std: 10, drift: 0.4,  anchor: '2026-04-15' },
   { ticker: 'NKE',   name: 'Nike',                     sector: 'Consumer Discretionary', basePrice: 74,  mean: 58, std: 11, drift: -0.4, anchor: '2026-03-18' },
   { ticker: 'MCD',   name: "McDonald's",               sector: 'Consumer Discretionary', basePrice: 293, mean: 68, std: 8,  drift: 0.0,  anchor: '2026-04-29' },
   { ticker: 'XOM',   name: 'ExxonMobil',               sector: 'Energy',                 basePrice: 111, mean: 65, std: 10, drift: 0.0,  anchor: '2026-04-25' },
@@ -391,7 +405,7 @@ for (const [sector, calls] of Object.entries(SECTOR_CALLS)) {
   SECTOR_DETAIL[sector] = computeSectorDetail(calls);
 }
 
-// Pulse: sector-level avg confidence + avg 7d return (most recent quarter per sector)
+// Pulse: sector-level avg confidence + avg 7d return
 export const PULSE = SECTORS.map(s => ({
   sector:         s.sector,
   avg_confidence: Math.round(avg(SECTOR_CALLS[s.sector].map(c => c.confidence_score))),
@@ -421,13 +435,13 @@ export const SEARCH_INDEX = COMPANY_DEFS.map(def => {
   };
 });
 
-// Calendar: upcoming earnings in the next 30 days (relative to June 11 2026)
+// Calendar: always relative to today so the demo stays current no matter when it's visited
 export const CALENDAR = [
-  { date: '2026-06-14', ticker: 'ORCL', company_name: 'Oracle Corporation',      source: 'system', tracked: true,  eps_estimate: 1.67, revenue_estimate: 14.3e9, avg_score: null, avg_return_7d: null, win_rate_7d: null },
-  { date: '2026-06-19', ticker: 'ADBE', company_name: 'Adobe Inc.',               source: null,     tracked: false, eps_estimate: 4.97, revenue_estimate: 5.8e9,  avg_score: null, avg_return_7d: null, win_rate_7d: null },
-  { date: '2026-06-23', ticker: 'FDX',  company_name: 'FedEx Corporation',        source: null,     tracked: false, eps_estimate: 5.22, revenue_estimate: 22.1e9, avg_score: null, avg_return_7d: null, win_rate_7d: null },
-  { date: '2026-06-25', ticker: 'NKE',  company_name: 'Nike',                     source: 'system', tracked: true,  eps_estimate: 0.79, revenue_estimate: 12.3e9, avg_score: 58,   avg_return_7d: -1.2, win_rate_7d: 42  },
-  { date: '2026-07-02', ticker: 'WBA',  company_name: 'Walgreens Boots Alliance', source: null,     tracked: false, eps_estimate: 0.62, revenue_estimate: 35.8e9, avg_score: null, avg_return_7d: null, win_rate_7d: null },
-  { date: '2026-07-07', ticker: 'DAL',  company_name: 'Delta Air Lines',          source: null,     tracked: false, eps_estimate: 1.82, revenue_estimate: 14.7e9, avg_score: null, avg_return_7d: null, win_rate_7d: null },
-  { date: '2026-07-10', ticker: 'JPM',  company_name: 'JPMorgan Chase',           source: 'system', tracked: true,  eps_estimate: 4.51, revenue_estimate: 44.2e9, avg_score: 70,   avg_return_7d: 1.8,  win_rate_7d: 67  },
+  { date: daysAhead(3),  ticker: 'ORCL', company_name: 'Oracle Corporation',      source: 'system', tracked: true,  eps_estimate: 1.67, revenue_estimate: 14.3e9, avg_score: null, avg_return_7d: null, win_rate_7d: null },
+  { date: daysAhead(8),  ticker: 'ADBE', company_name: 'Adobe Inc.',               source: null,     tracked: false, eps_estimate: 4.97, revenue_estimate: 5.8e9,  avg_score: null, avg_return_7d: null, win_rate_7d: null },
+  { date: daysAhead(12), ticker: 'FDX',  company_name: 'FedEx Corporation',        source: null,     tracked: false, eps_estimate: 5.22, revenue_estimate: 22.1e9, avg_score: null, avg_return_7d: null, win_rate_7d: null },
+  { date: daysAhead(14), ticker: 'NKE',  company_name: 'Nike',                     source: 'system', tracked: true,  eps_estimate: 0.79, revenue_estimate: 12.3e9, avg_score: 58,   avg_return_7d: -1.2, win_rate_7d: 42  },
+  { date: daysAhead(21), ticker: 'WBA',  company_name: 'Walgreens Boots Alliance', source: null,     tracked: false, eps_estimate: 0.62, revenue_estimate: 35.8e9, avg_score: null, avg_return_7d: null, win_rate_7d: null },
+  { date: daysAhead(26), ticker: 'DAL',  company_name: 'Delta Air Lines',          source: null,     tracked: false, eps_estimate: 1.82, revenue_estimate: 14.7e9, avg_score: null, avg_return_7d: null, win_rate_7d: null },
+  { date: daysAhead(29), ticker: 'JPM',  company_name: 'JPMorgan Chase',           source: 'system', tracked: true,  eps_estimate: 4.51, revenue_estimate: 44.2e9, avg_score: 70,   avg_return_7d: 1.8,  win_rate_7d: 67  },
 ];
