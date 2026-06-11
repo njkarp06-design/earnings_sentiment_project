@@ -437,7 +437,7 @@ export const SEARCH_INDEX = COMPANY_DEFS.map(def => {
 
 // Calendar: always relative to today so the demo stays current no matter when it's visited
 export const CALENDAR = [
-  { date: daysAhead(3),  ticker: 'ORCL', company_name: 'Oracle Corporation',      source: 'system', tracked: true,  eps_estimate: 1.67, revenue_estimate: 14.3e9, avg_score: null, avg_return_7d: null, win_rate_7d: null },
+  { date: daysAhead(3),  ticker: 'ORCL', company_name: 'Oracle Corporation',      source: 'system', tracked: false, eps_estimate: 1.67, revenue_estimate: 14.3e9, avg_score: null, avg_return_7d: null, win_rate_7d: null },
   { date: daysAhead(8),  ticker: 'ADBE', company_name: 'Adobe Inc.',               source: null,     tracked: false, eps_estimate: 4.97, revenue_estimate: 5.8e9,  avg_score: null, avg_return_7d: null, win_rate_7d: null },
   { date: daysAhead(12), ticker: 'FDX',  company_name: 'FedEx Corporation',        source: null,     tracked: false, eps_estimate: 5.22, revenue_estimate: 22.1e9, avg_score: null, avg_return_7d: null, win_rate_7d: null },
   { date: daysAhead(14), ticker: 'NKE',  company_name: 'Nike',                     source: 'system', tracked: true,  eps_estimate: 0.79, revenue_estimate: 12.3e9, avg_score: 58,   avg_return_7d: -1.2, win_rate_7d: 42  },

@@ -1,7 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { inspectCall } from '@/lib/api';
-import { getToken } from '@/lib/auth';
 
 function CloseIcon() {
   return (
@@ -121,11 +120,6 @@ export default function InspectModal({ item, onClose }) {
   }, [analysis]);
 
   useEffect(() => {
-    if (!getToken()) {
-      setError('Sign in to use deep analysis.');
-      return;
-    }
-
     let mounted = true;
 
     inspectCall(
