@@ -37,7 +37,7 @@ class Config:
                 "EarningsSentimentResearch contact@example.com",
             ),
             tickers=[t.strip().upper() for t in tickers_raw.split(",") if t.strip()],
-            lookback_days=int(os.getenv("LOOKBACK_DAYS", "15000")),
+            lookback_days=int(os.getenv("LOOKBACK_DAYS", "730")),
             schedule_interval_hours=int(os.getenv("SCHEDULE_INTERVAL_HOURS", "2")),
             rss_poll_interval_minutes=int(os.getenv("RSS_POLL_INTERVAL_MINUTES", "10")),
             fmp_api_key=os.getenv("FMP_API_KEY", ""),
