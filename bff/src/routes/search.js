@@ -40,10 +40,16 @@ router.get('/', async (req, res, next) => {
     const tickers = companyMatches.map(c => c.ticker);
     const latestReactions = await PriceReaction.aggregate([
       { $match: { ticker: { $in: tickers } } },
-      { $sort:  { call_date: -1 } },
+      // Prefer EDGAR records (real company name) over FMP fallbacks (ticker-as-name),
+      // then deduplicate by call_date before picking the latest call per ticker.
+      { $addFields: { _name_quality: { $cond: [{ $ne: ['$company_name', '$ticker'] }, 1, 0] } } },
+      { $sort: { call_date: -1, _name_quality: -1, correlated_at: -1 } },
+      { $group: { _id: { ticker: '$ticker', call_date: '$call_date' }, doc: { $first: '$$ROOT' } } },
+      { $replaceRoot: { newRoot: '$doc' } },
+      { $sort: { call_date: -1 } },
       { $group: { _id: '$ticker', doc: { $first: '$$ROOT' } } },
       { $replaceRoot: { newRoot: '$doc' } },
-      { $project: { _id: 0, __v: 0 } },
+      { $project: { _id: 0, __v: 0, _name_quality: 0 } },
     ]);
     const reactionMap = Object.fromEntries(latestReactions.map(r => [r.ticker, r]));
 

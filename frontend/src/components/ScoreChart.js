@@ -51,7 +51,7 @@ export default function ScoreChart({ data }) {
         <Tooltip
           {...tooltipStyle}
           formatter={(value, name) => [
-            name === 'return_7d' ? `${value}%` : value,
+            name === 'return_7d' ? (value != null ? `${(+value).toFixed(2)}%` : '—') : value,
             name === 'score' ? 'Confidence' : '7d Return',
           ]}
         />

@@ -105,7 +105,7 @@ def main() -> None:
     )
 
     mongo = MongoClient(cfg.mongo_uri)
-    db = mongo.earnings_sentiment
+    db = mongo.get_default_database()
 
     logger.info(
         "Scoring service ready | model=%s | topic=%s → %s",
