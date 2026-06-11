@@ -265,7 +265,7 @@
   <div class="layer-row">
     <div class="svc py" style="max-width:720px; flex:none; width:100%;">
       <span class="svc-name">Python Ingestor · port 8001</span>
-      <span class="svc-desc">APScheduler cron · 3-pass strategy (EDGAR → FMP → Alpha Vantage) · 8-K RSS Atom poller · Flask HTTP trigger API · yfinance price fetch · price_refresh job · S3 archive · dedup tracker</span>
+      <span class="svc-desc">APScheduler cron · 3-pass strategy (EDGAR → FMP → Alpha Vantage) · 8-K RSS Atom poller · Flask HTTP trigger + rebackfill API · yfinance price fetch · price_refresh job · S3 archive · dedup tracker</span>
     </div>
   </div>
 
@@ -300,7 +300,7 @@
     <div class="hflow-arrow">→</div>
     <div class="svc py" style="flex:1; min-width:190px;">
       <span class="svc-name">Scoring Service</span>
-      <span class="svc-desc">checks scores collection · calls Claude · gets confidence_score + key_phrases</span>
+      <span class="svc-desc">checks scores collection · calls Claude · gets confidence_score · key_phrases · guidance_flag · trade_brief · qa_defensiveness</span>
     </div>
     <div class="hflow-arrow">→</div>
     <div class="svc kafka" style="min-width:155px;">
@@ -414,7 +414,7 @@
     <div class="pipe-num">4</div>
     <div class="pipe-content">
       <div class="pipe-title">Scoring service consumes raw-transcripts → calls Claude → publishes scored-transcripts</div>
-      <div class="pipe-detail">Scoring service consumes from <code>raw-transcripts</code>. Checks <code>scores</code> collection first — skips if this <code>filing_id</code> was already scored (idempotent). Calls Claude using a cached system prompt (ephemeral <code>cache_control</code> reduces API cost). Model is set by <code>SCORING_MODEL</code> — <code>claude-haiku-4-5-20251001</code> is recommended in <code>.env.example</code>; docker-compose default is <code>claude-sonnet-4-6</code> if no <code>.env</code> is present. Transcript text is hard-capped at <code>MAX_TRANSCRIPT_CHARS</code> (default 150k) before sending to Claude. Receives a JSON response: <code>confidence_score</code> (0–100) and three <code>key_phrases</code>. Writes the result to the <code>scores</code> collection, then <strong>publishes the enriched message back to Kafka</strong> on the <code>scored-transcripts</code> topic.</div>
+      <div class="pipe-detail">Scoring service consumes from <code>raw-transcripts</code>. Checks <code>scores</code> collection first — skips records already scored <em>with all fields present</em> (records missing <code>trade_brief</code> or flagged <code>_mock</code> are re-scored). Calls Claude using a cached system prompt (<code>cache_control: ephemeral</code> reduces API cost). Model is set by <code>SCORING_MODEL</code> — <code>claude-haiku-4-5-20251001</code> is recommended in <code>.env.example</code>; docker-compose default is <code>claude-sonnet-4-6</code> if no <code>.env</code> is present. Transcript text is hard-capped at <code>MAX_TRANSCRIPT_CHARS</code> (default 150k) before sending to Claude. <code>max_tokens</code> is set to 512 to accommodate all five output fields. Receives a JSON response with five fields: <code>confidence_score</code> (0–100), three <code>key_phrases</code>, <code>guidance_flag</code> (raised / maintained / lowered / withdrawn / null), <code>trade_brief</code> (2-sentence plain-English trader summary), and <code>qa_defensiveness</code> (0–10 integer: how much more evasive management was in Q&amp;A vs. prepared remarks). If Anthropic credits are depleted the service commits and skips cleanly rather than blocking — records can be re-scored later via the rebackfill API. Writes all five fields to the <code>scores</code> collection, then <strong>publishes the enriched message back to Kafka</strong> on the <code>scored-transcripts</code> topic.</div>
     </div>
   </div>
   <div class="pipe-arrow">↓</div>
@@ -423,7 +423,7 @@
     <div class="pipe-num">5</div>
     <div class="pipe-content">
       <div class="pipe-title">Correlation service consumes scored-transcripts + raw-prices</div>
-      <div class="pipe-detail">The main thread consumes <code>scored-transcripts</code>. Fetches 12+ days of post-call OHLCV from yfinance. Calculates percentage returns at day 1, day 3, and day 7 from the baseline close (first trading day on or after the call date). Builds a <code>price_series</code> array (per-day {day, close, pct} used for sector drift visualisation). Looks up the company's sector from the <code>companies</code> collection and denormalises it onto the record. Computes a trend signal by comparing this call's score to the ticker's previous call. Writes the full denormalised record to <code>price_reactions</code>. If any trading window hasn't closed yet, those return fields are left null — the backfill daemon fills them in later. A separate background thread independently consumes <code>raw-prices</code> and caches OHLCV rows into <code>raw_prices</code> for the BFF chart endpoint.</div>
+      <div class="pipe-detail">The main thread consumes <code>scored-transcripts</code>. Fetches 12+ days of post-call OHLCV from yfinance. Calculates percentage returns at day 1, day 3, and day 7 from the baseline close (first trading day on or after the call date). Builds a <code>price_series</code> array of 8 points (day 0–7, each with day, close, pct) used for drift visualisation. Resolves sector via a 3-step cascade: companies collection first, then a static S&amp;P 100 map (instant, no network), then yfinance.info as a last resort. Computes a trend signal by comparing this call's score to the ticker's previous call. Upserts to <code>price_reactions</code> keyed on filing_id (falls back to (ticker, call_date) for FMP records that have no EDGAR filing_id). If any trading window hasn't closed yet, those return fields are left null — the backfill daemon fills them in later. A separate background thread independently consumes <code>raw-prices</code> and caches OHLCV rows into <code>raw_prices</code> for the BFF chart endpoint.</div>
     </div>
   </div>
   <div class="pipe-arrow">↓</div>
@@ -464,7 +464,7 @@
   <h3>Python Ingestor</h3>
   <p><strong>Three-pass transcript strategy</strong> — Pass 1: EDGAR client downloads 8-K exhibits and detects transcripts via signal phrases; respects SEC fair-use rate limits (≤10 req/s, 0.12s delay). Pass 2: FMP structured transcript archives always run after EDGAR — cross-source dedup prevents re-publishing the same call. Pass 3: Alpha Vantage (25 req/day free tier) is used only during on-demand single-ticker trigger requests to fill recent quarters.</p>
   <p><strong>RSS Atom poller</strong> — Polls the SEC 8-K Atom feed every <code>RSS_POLL_INTERVAL_MINUTES</code> (default 10 min). Catches <em>any</em> public company that files, even those not in the configured <code>TICKERS</code> list. Triggers a background historical backfill per newly discovered ticker. This is the primary real-time coverage mechanism; the per-ticker scan is a reliability backstop.</p>
-  <p><strong>Flask HTTP trigger API (port 8001)</strong> — <code>POST /trigger/&lt;TICKER&gt;</code> initiates an immediate on-demand scan: EDGAR 90-day window + full FMP archive + Alpha Vantage 8 quarters + async full historical backfill. Called internally by the BFF <code>/companies/:ticker/ingest</code> endpoint. <code>GET /health</code> is the liveness probe.</p>
+  <p><strong>Flask HTTP API (port 8001)</strong> — Four endpoints: <code>POST /trigger/&lt;TICKER&gt;</code> initiates an immediate on-demand scan (EDGAR 90-day + full FMP archive + Alpha Vantage 8 quarters + async historical backfill) — called by the BFF <code>/companies/:ticker/ingest</code> endpoint. <code>POST /rebackfill/&lt;TICKER&gt;</code> clears all processed flags for a single ticker and re-ingests it from scratch. <code>POST /rebackfill-all</code> does the same for every tracked ticker in sequence — called by the BFF <code>/companies/rebackfill</code> endpoint. <code>GET /health</code> is the liveness probe.</p>
   <p><strong>Scheduled jobs (APScheduler)</strong> — <code>periodic_ingest</code>: every <code>SCHEDULE_INTERVAL_HOURS</code> (default 2h), runs Pass 1+2 for all tickers (static + user watchlists + recently active). <code>price_refresh</code>: every 2h, re-publishes OHLCV for any filing that still has null returns so the correlation service can fill them in as each trading window closes.</p>
   <p><strong>Watchlist expansion</strong> — On each scheduled run, reads all users' watchlists from MongoDB and merges those tickers into the scan set, so newly bookmarked companies are automatically covered.</p>
   <p style="margin-bottom:0"><strong>S3 archival</strong> — Best-effort transcript backup to S3 when running in AWS. No-op locally.</p>
@@ -472,18 +472,27 @@
 
 <div class="card">
   <h3>Scoring Service</h3>
-  <p><strong>Claude scoring prompt</strong> — Uses a cached system prompt (ephemeral <code>cache_control</code>) with a five-band scoring rubric: 90–100 exceptionally confident · 70–89 confident · 50–69 neutral · 30–49 cautious · 0–29 very uncertain. Returns structured JSON. Model is configurable via <code>SCORING_MODEL</code>; <code>.env.example</code> recommends Haiku for cost efficiency; the docker-compose default when no <code>.env</code> is present is <code>claude-sonnet-4-6</code>. Transcript text is hard-capped at <code>MAX_TRANSCRIPT_CHARS</code> (default 150k) before being sent.</p>
-  <p><strong>Error handling</strong> — Malformed Claude responses: logs and commits offset (skips). Network/rate-limit errors: does not commit, retries on service restart.</p>
-  <p style="margin-bottom:0"><strong>Output</strong> — Writes to <code>scores</code> collection (filing_id unique, model_used, scored_at) AND publishes enriched message to <code>scored-transcripts</code> Kafka topic.</p>
+  <p><strong>Claude scoring prompt</strong> — Uses a cached system prompt (<code>cache_control: ephemeral</code>) so the prompt is only billed once per cache window. Returns a structured JSON object with five fields:</p>
+  <ul>
+    <li><code>confidence_score</code> — integer 0–100. Five-band rubric: 90–100 exceptionally confident · 70–89 confident · 50–69 neutral · 30–49 cautious · 0–29 very uncertain.</li>
+    <li><code>key_phrases</code> — three verbatim or near-verbatim phrases (≤12 words each) that most influenced the score.</li>
+    <li><code>guidance_flag</code> — direction of forward financial guidance: <code>raised</code> · <code>maintained</code> · <code>lowered</code> · <code>withdrawn</code> · <code>null</code> (none detectable).</li>
+    <li><code>trade_brief</code> — two plain-English sentences written for a short-term trader: what the results and tone signal for the stock, and the single most important forward-looking statement.</li>
+    <li><code>qa_defensiveness</code> — integer 0–10: how much more evasive management was during analyst Q&amp;A compared to prepared remarks. 0 = no Q&amp;A or equally confident throughout; 10 = stark contrast between confident remarks and alarmed/evasive Q&amp;A.</li>
+  </ul>
+  <p><code>max_tokens</code> is set to 512 to accommodate all five fields. Model is configurable via <code>SCORING_MODEL</code>; <code>.env.example</code> recommends <code>claude-haiku-4-5-20251001</code> for cost efficiency; the docker-compose default when no <code>.env</code> is present is <code>claude-sonnet-4-6</code>. Transcript text is hard-capped at <code>MAX_TRANSCRIPT_CHARS</code> (default 150k) before being sent.</p>
+  <p><strong>Idempotency</strong> — Before calling Claude, checks the <code>scores</code> collection. Skips records that are already scored <em>and</em> have <code>trade_brief</code> present. Records that pre-date the extended prompt (missing <code>trade_brief</code>) or are flagged <code>_mock</code> are re-scored, allowing old data to be upgraded in place.</p>
+  <p><strong>Error handling</strong> — Malformed Claude responses: logs and commits offset (skips permanently). Anthropic credit depletion: commits and skips cleanly — the queue drains without blocking; a <code>POST /rebackfill-all</code> call after topping up credits re-scores everything. Network/transient errors: does not commit, retries on service restart.</p>
+  <p style="margin-bottom:0"><strong>Output</strong> — Writes all five fields to the <code>scores</code> collection (unique index: filing_id, stores model_used and scored_at) AND publishes the full enriched message to the <code>scored-transcripts</code> Kafka topic.</p>
 </div>
 
 <div class="card">
   <h3>Correlation Service</h3>
   <p><strong>Three concurrent threads in one container:</strong></p>
   <ul>
-    <li><strong>Main thread</strong> — consumes <code>scored-transcripts</code>, fetches yfinance, computes 1d/3d/7d returns, builds <code>price_series</code> array, denormalises sector from companies collection, computes trend, writes <code>price_reactions</code>, fires notifications</li>
+    <li><strong>Main thread</strong> — consumes <code>scored-transcripts</code>, fetches yfinance, computes 1d/3d/7d returns, builds <code>price_series</code> array, resolves sector via a 3-step cascade (companies collection → static S&amp;P 100 map → yfinance.info), computes trend, passes through <code>guidance_flag</code> / <code>trade_brief</code> / <code>qa_defensiveness</code> from the Kafka message, writes full record to <code>price_reactions</code> (falls back to (ticker, call_date) upsert key when filing_id is absent), fires notifications. Idempotency: skips records already in <code>price_reactions</code> with <code>trade_brief</code> present; re-correlates records missing <code>trade_brief</code> or flagged <code>_mock</code>.</li>
     <li><strong>Cache thread</strong> — consumes <code>raw-prices</code>, upserts rows into <code>raw_prices</code> collection for BFF chart queries</li>
-    <li><strong>Backfill daemon</strong> — runs every <strong>4 hours</strong>, finds <code>price_reactions</code> with any null return fields and re-fetches yfinance to fill them in (records <code>backfilled_at</code>); also backfills missing <code>sector</code> values from the companies collection</li>
+    <li><strong>Backfill daemon</strong> — runs every <strong>4 hours</strong>, finds <code>price_reactions</code> with any null return fields or null <code>price_series</code> and re-fetches yfinance to fill them in (records <code>backfilled_at</code>); also backfills missing <code>sector</code> values from the companies collection</li>
   </ul>
   <p><strong>Trend signal</strong> — Compares current call's score to the same ticker's most recent previous call. Assigns "up" (≥+5), "down" (≤−5), or "neutral".</p>
   <p style="margin-bottom:0"><strong>price_series</strong> — Day-by-day percentage change array stored on each <code>price_reactions</code> document. Used by the BFF sector endpoints to compute mean and standard-deviation drift paths across all companies in a sector.</p>
@@ -493,6 +502,7 @@
   <h3>Node.js BFF</h3>
   <p><strong>/inspect endpoint</strong> — Accepts a POST with call metadata, opens an SSE connection, proxies Claude Sonnet's streaming response back to the browser as JSON text chunks. Rate-limited to 10 requests/hour per user. Uses <code>INSPECT_MODEL</code> env var (default <code>claude-sonnet-4-6</code>).</p>
   <p><strong>/companies/:ticker/ingest endpoint</strong> — Auth-required POST that forwards to the ingestor's <code>/trigger/&lt;TICKER&gt;</code> HTTP API (<code>INGESTOR_URL</code>, default <code>http://ingestor:8001</code>). Lets the frontend trigger an immediate on-demand scan for any company a user has just bookmarked.</p>
+  <p><strong>/companies/rebackfill endpoint</strong> — Auth-required POST that forwards to the ingestor's <code>/rebackfill-all</code> HTTP API. Triggers a full re-ingest of all tracked tickers so existing records get re-scored with the latest prompt — the primary way to backfill <code>guidance_flag</code>, <code>trade_brief</code>, and <code>qa_defensiveness</code> onto older records after an Anthropic credit top-up.</p>
   <p><strong>Sector analytics</strong> — <code>GET /sectors</code> returns per-sector averages (confidence, returns, win rate, call count). <code>GET /sectors/:sector</code> returns a drift path (mean ± std per day computed across all company <code>price_series</code> in that sector) plus per-company rankings.</p>
   <p><strong>EDGAR-preferred deduplication</strong> — All aggregations (feed, portfolio, leaderboard, search) deduplicate by (ticker, call_date), preferring EDGAR records over FMP records so real company names always win over ticker-as-name FMP entries.</p>
   <p style="margin-bottom:0"><strong>price_reactions as the read model</strong> — Almost all BFF queries read from this single denormalised collection. No joins across collections at request time.</p>
@@ -514,7 +524,7 @@
   <tr><td>Email</td><td>Resend API</td><td>Opt-in portfolio watchlist alerts; enabled via <code>NOTIFICATION_PROVIDER=resend</code></td></tr>
   <tr><td>Storage</td><td>MongoDB 7</td><td>8 collections · Mongoose ODM · Atlas in production</td></tr>
   <tr><td>API</td><td>Node.js 20 · Express 4</td><td>JWT auth · 12 route groups · EDGAR-preferred dedup across all aggregations</td></tr>
-  <tr><td>Frontend</td><td>Next.js 14 (App Router) · React 18 · Tailwind CSS · Recharts</td><td>Dark theme · 8 pages · PortfolioContext · sector drift visualisation</td></tr>
+  <tr><td>Frontend</td><td>Next.js 14 (App Router) · React 18 · Tailwind CSS · Recharts</td><td>Light corporate theme · 8 pages · PortfolioContext · PredictabilityScatter · PostEarningsProfile · Hint tooltips · tabbed feed</td></tr>
   <tr><td>Local infra</td><td>Docker Compose</td><td>10 containers incl. kafka-setup one-shot + kafka-ui</td></tr>
   <tr><td>Cloud</td><td>AWS — ECS Fargate · MSK · ECR · ALB · S3 · Secrets Manager · CloudWatch</td><td>Terraform IaC · GitHub Actions CI/CD (manual trigger)</td></tr>
 </table>
@@ -523,12 +533,12 @@
 <hr>
 
 <h2>MongoDB collections</h2>
-<p><code>price_reactions</code> is the central read model — one denormalised document per filing containing score, returns, trend, price_series, key phrases, and sector. The BFF reads almost exclusively from this collection with no joins. Six collections are created by <code>mongo/init/01_init.js</code> on first startup (companies and transcripts with schema validation; the others plain). The two internal collections are created dynamically on first write.</p>
+<p><code>price_reactions</code> is the central read model — one denormalised document per filing containing score, key phrases, guidance flag, trade brief, Q&amp;A defensiveness, returns, trend, price_series, and sector. The BFF reads almost exclusively from this collection with no joins. Six collections are created by <code>mongo/init/01_init.js</code> on first startup (companies and transcripts with schema validation; the others plain). The two internal collections are created dynamically on first write.</p>
 
 <div class="collections">
   <div class="coll">
     <div class="coll-name">price_reactions</div>
-    <div class="coll-note">Primary BFF read source. One doc per filing: score, key_phrases, 1d/3d/7d returns, trend, price_series (per-day pct array), call_date_close, sector, company_name, backfilled_at. Written by correlation-service. Unique index: filing_id.</div>
+    <div class="coll-note">Primary BFF read source. One doc per filing: confidence_score, key_phrases, guidance_flag, trade_brief, qa_defensiveness, 1d/3d/7d returns, trend, price_series (per-day pct array), call_date_close, sector, company_name, model_used, scored_at, correlated_at, backfilled_at. Written by correlation-service. Unique index: filing_id.</div>
   </div>
   <div class="coll">
     <div class="coll-name">companies</div>
@@ -536,7 +546,7 @@
   </div>
   <div class="coll">
     <div class="coll-name">scores</div>
-    <div class="coll-note">Raw scoring output per filing_id (unique). Written by scoring-service. Stores model_used and scored_at. Used only for the idempotency check before calling Claude — not queried by the BFF.</div>
+    <div class="coll-note">Raw scoring output per filing_id (unique). Written by scoring-service. Stores confidence_score, key_phrases, guidance_flag, trade_brief, qa_defensiveness, model_used, scored_at. Used for the idempotency check before calling Claude (re-scored if trade_brief is absent or record is flagged _mock) — not queried by the BFF directly.</div>
   </div>
   <div class="coll">
     <div class="coll-name">raw_prices</div>
@@ -600,13 +610,19 @@ returns richer data when authenticated.</p>
   <div class="ep">
     <div class="ep-route">GET /companies/:ticker/accuracy</div>
     <span class="ep-auth auth-pub">Public</span>
-    <div class="ep-desc">Track-record analysis split into three score buckets: High ≥70 · Mid 45–69 · Low &lt;45. Shows call count and avg returns per bucket.</div>
+    <div class="ep-desc">Track-record analysis split into three score buckets: High ≥70 · Mid 45–70 · Low &lt;45. Per bucket: call count, avg 1d/3d/7d returns, win rate (% of calls with positive 7d return), avg winning return, avg losing return, and expected value EV(7d) = (Win% × Avg Win) + (Loss% × Avg Loss).</div>
   </div>
 
   <div class="ep">
     <div class="ep-route">POST /companies/:ticker/ingest</div>
     <span class="ep-auth auth-req">Auth required</span>
     <div class="ep-desc">Triggers an immediate on-demand scan for this ticker by forwarding to the ingestor's <code>/trigger/&lt;TICKER&gt;</code> HTTP API. Runs EDGAR 90-day + full FMP archive + Alpha Vantage 8 quarters + async historical backfill. Used when a user first bookmarks a company.</div>
+  </div>
+
+  <div class="ep">
+    <div class="ep-route">POST /companies/rebackfill</div>
+    <span class="ep-auth auth-req">Auth required</span>
+    <div class="ep-desc">Forwards to the ingestor's <code>/rebackfill-all</code> HTTP API. Clears all processed flags for every tracked ticker and re-ingests from scratch so existing records get re-scored with the latest Claude prompt. The primary mechanism for backfilling <code>guidance_flag</code>, <code>trade_brief</code>, and <code>qa_defensiveness</code> onto older records, or after Anthropic credits are replenished.</div>
   </div>
 
   <div class="ep">
@@ -648,7 +664,7 @@ returns richer data when authenticated.</p>
   <div class="ep">
     <div class="ep-route">GET /calendar?from=&amp;to=</div>
     <span class="ep-auth auth-opt">Auth optional</span>
-    <div class="ep-desc">FMP earnings calendar. If authenticated, marks watchlist tickers as <code>source='portfolio'</code> and server <code>TICKERS</code> as <code>source='system'</code>. Portfolio → system → rest ordering. Includes EPS/revenue estimates from FMP.</div>
+    <div class="ep-desc">FMP earnings calendar (default: next 30 days). If authenticated, marks watchlist tickers as <code>source='portfolio'</code> and server <code>TICKERS</code> as <code>source='system'</code>. Portfolio → system → rest ordering. Includes EPS/revenue estimates from FMP. For tracked tickers with historical data, also injects <code>avg_score</code>, <code>avg_return_7d</code>, and <code>win_rate_7d</code> so the calendar can show a company's past track record alongside its upcoming event.</div>
   </div>
 
   <div class="ep">
@@ -713,12 +729,12 @@ returns richer data when authenticated.</p>
 <div class="tbl-wrap">
 <table>
   <tr><th>Route</th><th>Description</th></tr>
-  <tr><td><code>/</code></td><td>Dashboard feed. Groups calls into Live (&lt;24h), This Week, Earlier. All vs Portfolio filter toggle. Auto-polls every 60s (incremental update; full refresh every 5 polls). Pending badge for calls still filling in returns.</td></tr>
-  <tr><td><code>/companies/[ticker]</code></td><td>Score history chart (Recharts LineChart, shown if ≥2 calls), all past calls as cards, accuracy track-record by score bucket. Clicking any card opens InspectModal. Bookmark toggle triggers on-demand ingest for unseen companies.</td></tr>
+  <tr><td><code>/</code></td><td>Dashboard feed. Three time tabs — Live (&lt;24h), This Week, Earlier — auto-selects the most relevant tab on load. All vs Portfolio toggle (authenticated users). Auto-polls every 60s: incremental update on most polls, full refresh every 5th poll. Pending badge for calls still filling in returns. Score threshold legend (≥70 High / 45–69 Moderate / &lt;45 Low) shown on the leaderboard header.</td></tr>
+  <tr><td><code>/companies/[ticker]</code></td><td>Stat strip: Latest Score, Calls Tracked, Last Report, Last 7d Return, Predictability (Pearson r), Score Trend (pts delta over last 4–6 calls), vs Sector 7d (company avg vs sector avg). Trade Brief card (2-sentence trader summary with guidance badge). Score + return history chart (≥2 calls). Post-Earnings Drift chart (current call vs historical avg ± 1 std dev band, sector-avg reference line). CEO Predictability Scatter (confidence vs return per call, OLS regression line, Pearson r, R², predicted return for latest score). Track Record table (score buckets with win %, avg win/loss, EV). Call cards showing GuidanceBadge, QABadge, sparkline, key phrases, 1d/3d/7d returns. Clicking any card opens InspectModal. Bookmark toggle triggers on-demand ingest for unseen companies. Hint tooltips explain Pearson r, R², EV, score trend, and sector delta.</td></tr>
   <tr><td><code>/portfolio</code></td><td>Auth-protected. Watchlist cards + "just reported" section + sector-matched suggestion cards + notification preferences editor (toggle + custom email address).</td></tr>
-  <tr><td><code>/leaderboard</code></td><td>Ranked table of all tickers by avg 7-day post-call return. Columns: rank badge, ticker, call count, avg confidence, avg 1d/3d/7d returns, win rate %.</td></tr>
-  <tr><td><code>/sectors</code></td><td>Sector Pulse. Sector cards showing avg returns, win rate, call count. Clicking any card expands an inline detail panel on the same page showing the drift chart (mean ± 1σ band, D0→D7) and per-company rankings — no separate route.</td></tr>
-  <tr><td><code>/calendar</code></td><td>FMP earnings calendar (next 30 days). Highlights portfolio tickers and server-tracked tickers as "tracked". Shows EPS/revenue estimates. Portfolio → system → rest ordering.</td></tr>
+  <tr><td><code>/leaderboard</code></td><td>Ranked table of all tickers by avg 7-day post-call return. Score threshold legend in the header. Columns: rank badge, ticker, call count, avg confidence, avg 1d/3d/7d returns, win rate %. Clicking any row opens a drift chart overlay.</td></tr>
+  <tr><td><code>/sectors</code></td><td>Sector Pulse. Sector cards showing avg returns, win rate, call count. Clicking any card expands an inline detail panel on the same page showing the drift chart (mean ± 1 std dev band, D0→D7) and per-company rankings — no separate route.</td></tr>
+  <tr><td><code>/calendar</code></td><td>FMP earnings calendar (next 30 days). Highlights portfolio tickers and server-tracked tickers. For tracked tickers that have historical data, shows Avg Score, Avg 7d Return, and Win % columns so you can assess each company's track record before its next report. Shows EPS/revenue estimates. Portfolio → system → rest ordering.</td></tr>
   <tr><td><code>/login</code></td><td>Email + password form. Stores JWT in localStorage on success.</td></tr>
   <tr><td><code>/register</code></td><td>Account creation form. Error on duplicate email.</td></tr>
 </table>
@@ -733,9 +749,9 @@ kafka-setup         # One-shot container: creates the 3 topics, then exits
 kafka-ui            # Provectus web UI — port 8080
 mongo               # mongo:7 — init script creates 6 collections + indexes (_ingested_filings + _sent_notifications created on first write)
 
-ingestor            # Python — EDGAR + FMP + Alpha Vantage + RSS + price_refresh + Flask HTTP (port 8001)
-scoring-service     # Python — Claude scoring (model via SCORING_MODEL)
-correlation-service # Python — returns + price_series + sector denorm + raw_prices cache + 4h backfill + notifications
+ingestor            # Python — EDGAR + FMP + Alpha Vantage + RSS + price_refresh + Flask HTTP (port 8001) + rebackfill endpoints
+scoring-service     # Python — Claude scoring (model via SCORING_MODEL) — 5 fields: score, key_phrases, guidance_flag, trade_brief, qa_defensiveness
+correlation-service # Python — returns + price_series + sector denorm + raw_prices cache + 4h backfill + notifications + passes new fields through to price_reactions
 bff                 # Node.js Express — port 3001
 frontend            # Next.js 14 — port 3000
 
@@ -788,6 +804,12 @@ volumes:
 </div>
 
 <div class="card">
+  <h3>Five scoring fields, not one</h3>
+  <p>The original scoring prompt returned only <code>confidence_score</code> and <code>key_phrases</code>. The prompt was extended to return three additional fields in the same Claude call at no extra latency cost: <code>guidance_flag</code> (did management raise, maintain, lower, or withdraw guidance?), <code>trade_brief</code> (a 2-sentence plain-English trader take on the call), and <code>qa_defensiveness</code> (how much more evasive management was in Q&amp;A vs. prepared remarks, on a 0–10 scale). All five fields flow through the same Kafka message and land on every <code>price_reactions</code> document, so the frontend can render a guidance badge, a trade brief card, and a Q&amp;A caution badge without any additional API calls.</p>
+  <p>Existing records that pre-date this extension are re-scored automatically: the scoring-service checks for the absence of <code>trade_brief</code> and re-processes those records when they next appear in the Kafka queue. A full re-score of all historical data can be triggered via <code>POST /companies/rebackfill</code>.</p>
+</div>
+
+<div class="card">
   <h3>On-demand ingest via HTTP trigger</h3>
   <p>The ingestor exposes a Flask HTTP API on port 8001. The BFF's <code>POST /companies/:ticker/ingest</code> forwards to it when a user bookmarks a company that has no data yet. This gives the user near-immediate feedback rather than waiting up to <code>SCHEDULE_INTERVAL_HOURS</code> for the next scheduled run. The trigger runs Pass 1+2+3 synchronously, then kicks off a full historical backfill asynchronously in the background.</p>
 </div>
@@ -801,7 +823,7 @@ volumes:
     <li>Async background full historical backfill (<code>LOOKBACK_DAYS</code>)</li>
     <li>The RSS poller covers all future filings for that company in real time</li>
   </ul>
-  <p style="margin-bottom:0">The result is the same full card — score, key phrases, 1d/3d/7d returns — as any actively monitored company, typically appearing within minutes of bookmarking.</p>
+  <p style="margin-bottom:0">The result is the same full card — score, key phrases, guidance badge, trade brief, Q&amp;A defensiveness, 1d/3d/7d returns — as any actively monitored company, typically appearing within minutes of bookmarking.</p>
 </div>
 
 <div class="card">
@@ -811,7 +833,7 @@ volumes:
 
 <div class="card">
   <h3>price_reactions as the denormalised read model</h3>
-  <p>Rather than joining <code>scores</code> + <code>transcripts</code> + prices at query time, the correlation-service writes a single document per call into <code>price_reactions</code> containing everything the frontend needs: score, key_phrases, 1d/3d/7d returns, trend, price_series, sector, and company_name. The BFF reads almost exclusively from this one collection — no cross-collection joins on any request path.</p>
+  <p>Rather than joining <code>scores</code> + <code>transcripts</code> + prices at query time, the correlation-service writes a single document per call into <code>price_reactions</code> containing everything the frontend needs: confidence_score, key_phrases, guidance_flag, trade_brief, qa_defensiveness, 1d/3d/7d returns, trend, price_series, sector, and company_name. The BFF reads almost exclusively from this one collection — no cross-collection joins on any request path.</p>
 </div>
 
 <div class="card">
@@ -821,7 +843,7 @@ volumes:
 
 <div class="card">
   <h3>Idempotency at every stage</h3>
-  <p><code>_ingested_filings</code> prevents re-publishing to Kafka (covers both scheduled runs and HTTP trigger calls). The scoring-service checks <code>scores</code> before calling Claude. The correlation-service uses Mongoose upserts keyed on filing_id. <code>_sent_notifications</code> has a unique compound index preventing duplicate emails. Every service can restart, crash, or replay messages without producing duplicate data.</p>
+  <p><code>_ingested_filings</code> prevents re-publishing to Kafka (covers both scheduled runs and HTTP trigger calls). The scoring-service checks <code>scores</code> before calling Claude — skips if already scored with all five fields present, but re-scores if <code>trade_brief</code> is absent (record pre-dates the extended prompt) or the record is flagged <code>_mock</code>. The correlation-service uses upserts keyed on filing_id. <code>_sent_notifications</code> has a unique compound index on (user_id, ticker, call_date) preventing duplicate emails. Every service can restart, crash, or replay messages without producing duplicate data.</p>
 </div>
 
 <hr>
