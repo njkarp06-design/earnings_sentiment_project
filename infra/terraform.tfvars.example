@@ -31,6 +31,6 @@ fmp_api_key = ""
 edgar_user_agent = "EarningsSentimentResearch contact@example.com"
 tickers          = "AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,JPM,JNJ,XOM"
 lookback_days    = 30
-schedule_hour    = 6
+schedule_interval_hours = 2
 scoring_model    = "claude-sonnet-4-6"
 price_fetch_days = 12
