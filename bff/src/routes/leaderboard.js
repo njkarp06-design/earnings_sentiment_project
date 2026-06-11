@@ -10,7 +10,9 @@ router.get('/', async (_req, res, next) => {
       { $match: { return_7d: { $ne: null } } },
       // Deduplicate by (ticker, call_date) first so that any EDGAR+FMP
       // duplicates for the same call don't inflate call_count or skew averages.
-      { $sort: { correlated_at: -1 } },
+      // Prefer EDGAR records (real company name) over FMP fallbacks (ticker-as-name).
+      { $addFields: { _name_quality: { $cond: [{ $ne: ['$company_name', '$ticker'] }, 1, 0] } } },
+      { $sort: { call_date: -1, _name_quality: -1, correlated_at: -1 } },
       {
         $group: {
           _id:              { ticker: '$ticker', call_date: '$call_date' },
@@ -36,7 +38,6 @@ router.get('/', async (_req, res, next) => {
           wins:           { $sum: { $cond: [{ $gt: ['$return_7d', 0] }, 1, 0] } },
         },
       },
-      { $match: { call_count: { $gte: 1 } } },
       { $sort: { avg_return_7d: -1 } },
       {
         $project: {

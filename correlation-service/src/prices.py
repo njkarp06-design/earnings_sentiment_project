@@ -91,6 +91,9 @@ def compute_post_call_returns(ticker: str, call_date: str, fetch_days: int = 12)
         return {}
 
     base_close = float(on_or_after["Close"].iloc[0])
+    if base_close == 0:
+        logger.warning("Base close price is zero for %s %s — skipping return calculation", ticker, call_date)
+        return {}
     result: dict = {"call_date_close": round(base_close, 4)}
 
     # Subsequent trading days (strictly after the baseline day)
