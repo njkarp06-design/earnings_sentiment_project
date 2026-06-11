@@ -123,17 +123,17 @@ const LOW_BRIEFS = [
 // Week tab  → anchor = daysAgo(2–6)  (call within last 7 days)
 // Earlier   → anchor = fixed past date (>7 days ago)
 const COMPANY_DEFS = [
-  // Live
+  // Live — anchor = today so most-recent call always appears in "Live" tab
   { ticker: 'NVDA',  name: 'NVIDIA Corporation',      sector: 'Technology',             basePrice: 475, mean: 83, std: 7,  drift: 0.8,  anchor: today },
   { ticker: 'META',  name: 'Meta Platforms',           sector: 'Technology',             basePrice: 508, mean: 79, std: 8,  drift: 0.5,  anchor: today },
   { ticker: 'MSFT',  name: 'Microsoft Corporation',    sector: 'Technology',             basePrice: 415, mean: 78, std: 7,  drift: 0.3,  anchor: today },
-  // This Week
+  // This Week — anchor = 2–6 days ago
   { ticker: 'GOOGL', name: 'Alphabet Inc.',            sector: 'Technology',             basePrice: 173, mean: 72, std: 9,  drift: 0.1,  anchor: daysAgo(2) },
   { ticker: 'AAPL',  name: 'Apple Inc.',               sector: 'Technology',             basePrice: 192, mean: 74, std: 8,  drift: 0.0,  anchor: daysAgo(3) },
   { ticker: 'JPM',   name: 'JPMorgan Chase',           sector: 'Financial Services',     basePrice: 203, mean: 70, std: 8,  drift: 0.1,  anchor: daysAgo(4) },
   { ticker: 'TSLA',  name: 'Tesla',                    sector: 'Consumer Discretionary', basePrice: 218, mean: 58, std: 15, drift: 0.0,  anchor: daysAgo(5) },
   { ticker: 'NFLX',  name: 'Netflix',                  sector: 'Consumer Discretionary', basePrice: 638, mean: 70, std: 10, drift: 0.4,  anchor: daysAgo(6) },
-  // Earlier
+  // Earlier — fixed dates well in the past
   { ticker: 'AMD',   name: 'Advanced Micro Devices',   sector: 'Technology',             basePrice: 143, mean: 70, std: 10, drift: 0.3,  anchor: '2026-02-04' },
   { ticker: 'INTC',  name: 'Intel Corporation',        sector: 'Technology',             basePrice: 21,  mean: 44, std: 12, drift: -0.6, anchor: '2026-01-28' },
   { ticker: 'CRWD',  name: 'CrowdStrike Holdings',     sector: 'Technology',             basePrice: 353, mean: 75, std: 8,  drift: 0.4,  anchor: '2026-03-04' },
