@@ -69,10 +69,10 @@ variable "lookback_days" {
   default     = 30
 }
 
-variable "schedule_hour" {
-  description = "UTC hour (0–23) for the nightly ingest cron"
+variable "schedule_interval_hours" {
+  description = "How often the ingestor re-scans all tickers (hours between runs)"
   type        = number
-  default     = 6
+  default     = 2
 }
 
 variable "scoring_model" {
