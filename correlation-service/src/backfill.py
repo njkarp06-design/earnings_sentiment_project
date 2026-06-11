@@ -1,10 +1,11 @@
 """
-Daily backfill job: find price_reactions with null returns and fill them in.
+Periodic backfill job (runs every 4 hours): find price_reactions with null
+returns and fill them in.
 
 After a live earnings call is scored and written to MongoDB, its 1d/3d/7d
 returns will be None because the trading windows haven't elapsed yet.  This
-job runs once every 24 h and re-fetches prices for any pending docs so the
-data fills in naturally over the week following each call.
+job re-fetches prices every 4 hours so the data fills in naturally over the
+week following each call.
 """
 
 import logging
