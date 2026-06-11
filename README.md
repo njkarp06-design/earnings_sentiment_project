@@ -1,49 +1,51 @@
 # EarningsSentiment
 
-A real-time earnings intelligence platform that scores CEO confidence from earnings call transcripts using Claude AI, then correlates those scores against post-earnings stock returns to surface predictive patterns.
+**Does how a CEO speaks on an earnings call predict what the stock does next?**
+
+EarningsSentiment is a real-time intelligence platform that answers this question at scale. It ingests earnings call transcripts as they are filed with the SEC, scores the CEO's language using Claude AI, and automatically correlates those scores against 1-day, 3-day, and 7-day post-call price moves — building an ever-growing dataset of whether executive language actually signals anything.
 
 ---
 
-## What it does
+## How the scoring works
 
-Every time a public company files an earnings call transcript with the SEC, the pipeline:
+Every transcript is sent to Claude with a structured analytical prompt. Claude returns five signals:
 
-1. **Ingests** the transcript from EDGAR (SEC filings), FMP (structured archives), or Alpha Vantage
-2. **Scores** the CEO's language via Claude — confidence score (0–100), key phrases, guidance direction, Q&A defensiveness, and a one-paragraph trade brief
-3. **Correlates** the score against 1d, 3d, and 7d post-call price moves via yfinance
-4. **Surfaces** the results in a live feed, leaderboard, sector breakdown, predictability scatter, and earnings calendar
+| Signal | What it measures |
+|---|---|
+| **Confidence score** (0–100) | Overall CEO language confidence — from crisis language (0–29) through cautious (30–49), neutral (50–69), confident (70–89), to exceptionally specific and grounded (90–100) |
+| **Key phrases** | The 3 verbatim phrases that drove the score most |
+| **Guidance flag** | Did management raise, maintain, lower, or withdraw forward guidance? |
+| **Trade brief** | Two plain-English sentences for a short-term trader: what the tone signals for the next week, and the single most important forward-looking statement |
+| **Q&A defensiveness** (0–10) | How much more evasive management became during analyst Q&A vs. their prepared remarks — a divergence signal many analysts miss |
 
-The result is a dataset and UI that answers: *does how a CEO talks on earnings calls actually predict what the stock does next?*
+The system prompt is sent with Claude's prompt caching, so repeated calls for different transcripts reuse the cached context — cutting latency by ~80% and token cost by ~90% on cache hits.
 
 ---
 
 ## Architecture
 
 ```
-                        ┌─────────────┐
-  EDGAR / FMP / AV ───▶ │   Ingestor  │ ──▶ raw-transcripts ──▶ ┌─────────────────┐
-                        │  (Python)   │ ──▶ raw-prices       ──▶ │  Scoring Svc    │
-                        └─────────────┘                          │  (Python/Claude)│
-                                                                  └────────┬────────┘
-                                                                           │ scored-transcripts
-                                                                  ┌────────▼────────┐
-                                                                  │ Correlation Svc │
-                                                                  │ (Python/yfinance)│
-                                                                  └────────┬────────┘
-                                                                           │
-                                                                  ┌────────▼────────┐
-                                                                  │    MongoDB      │
-                                                                  └────────┬────────┘
-                                                                           │
-                                                                  ┌────────▼────────┐
-                                                                  │   BFF (Node.js) │ ◀── JWT auth
-                                                                  └────────┬────────┘
-                                                                           │
-                                                                  ┌────────▼────────┐
-                                                                  │  Frontend       │
-                                                                  │  (Next.js 14)   │
-                                                                  └─────────────────┘
+  Data Sources                Kafka Pipeline              Storage & API
+  ────────────                ──────────────              ─────────────
+
+  SEC EDGAR  ──┐                                          ┌─ MongoDB
+  FMP        ──┼──▶ Ingestor ──▶ raw-transcripts ──▶ Scoring Service ─┤
+  Alpha Vant ──┘         │                                │             └─ BFF (Node.js)
+                         └──▶ raw-prices ──▶ Correlation Service          │
+                                                    (yfinance)          Frontend
+                                                          │             (Next.js 14)
+                                                    price_reactions
 ```
+
+**Services**
+
+| Service | Language | Role |
+|---|---|---|
+| `ingestor` | Python | Polls EDGAR 8-K RSS feed + scheduled scans; publishes transcripts and price windows to Kafka |
+| `scoring-service` | Python | Consumes `raw-transcripts`; calls Claude; publishes to `scored-transcripts` |
+| `correlation-service` | Python | Consumes `scored-transcripts`; fetches 1d/3d/7d returns via yfinance; writes `price_reactions` to MongoDB |
+| `bff` | Node.js / Express | REST API with JWT auth; serves all frontend data from MongoDB |
+| `frontend` | Next.js 14 | Full UI — feed, leaderboard, sectors, company pages, calendar, portfolio |
 
 **Kafka topics:** `raw-transcripts` · `raw-prices` · `scored-transcripts`
 
@@ -51,34 +53,32 @@ The result is a dataset and UI that answers: *does how a CEO talks on earnings c
 
 ---
 
-## Stack
-
-| Layer | Technology |
-|---|---|
-| Ingestor | Python · EDGAR API · FMP API · Alpha Vantage |
-| Scoring | Python · Anthropic Claude API (`claude-sonnet-4-6`) |
-| Correlation | Python · yfinance |
-| Message bus | Apache Kafka (Confluent) |
-| Database | MongoDB 7 |
-| BFF API | Node.js · Express · JWT |
-| Frontend | Next.js 14 (App Router) · Tailwind CSS · Recharts |
-| Infrastructure | Docker Compose (local) · AWS ECS Fargate + MSK + Atlas (production) |
-
----
-
 ## Features
 
-- **Live feed** — scored calls stream in as they are filed; cards show 1d/3d/7d returns with sparklines
-- **CEO confidence scoring** — Claude scores language 0–100 with key phrases, guidance flag (raised/maintained/lowered/withdrawn), Q&A defensiveness, and a trade brief
-- **Post-earnings drift chart** — average price path day 0→7 across all calls, with ±1 std dev band and ghost lines for each prior call
-- **Predictability scatter** — Pearson r between confidence score and 7d return; regression line overlay
-- **Score trend & sector-relative return** — confidence trajectory over recent calls; company avg vs sector avg
-- **Leaderboard** — companies ranked by average 7d post-call return with win rate and track record
-- **Sector pulse** — aggregate post-earnings returns by sector, sector-level drift chart, company rankings
-- **Earnings calendar** — upcoming reports via FMP with historical score/return context for tracked tickers
-- **Portfolio watchlist** — save companies, get email notifications when they report
-- **Deep analysis (Inspect)** — SSE-streamed Claude analysis of any individual call
-- **Search** — full company universe (~10k US-listed companies from EDGAR)
+**Pipeline**
+- Multi-source ingestion: EDGAR (SEC 8-K filings), FMP structured archives, Alpha Vantage
+- Cross-source deduplication — EDGAR and FMP records for the same call are merged cleanly, always preferring the authoritative EDGAR company name
+- 4-hourly backfill of return windows as trading days elapse post-call
+- On-demand single-ticker ingest triggered from the UI
+
+**Analysis**
+- Confidence score with key phrase extraction
+- Guidance direction (raised / maintained / lowered / withdrawn)
+- Q&A defensiveness score — divergence between prepared remarks and analyst Q&A
+- Plain-English trade brief for each call
+- Post-earnings drift chart — average price path day 0→7, ±1 std dev band, ghost lines for each prior call
+- Predictability scatter — Pearson r correlation between CEO confidence and 7d return with regression overlay
+- Score trend over recent calls; company avg 7d return vs sector benchmark
+
+**UI**
+- Live feed — cards stream in with sparklines, score, key phrases, and return badges; incrementally polls for new items
+- Leaderboard — companies ranked by average 7d post-call return with win rate and score
+- Sector pulse — aggregate drift charts and company rankings per sector
+- Earnings calendar — upcoming reports via FMP with historical score/return context for tracked tickers
+- Company page — full call history, score chart, drift profile, predictability scatter, track record by score bucket, individual call deep-dives
+- Portfolio watchlist — save companies; email alerts when they report (via Resend)
+- Deep analysis — SSE-streamed Claude analysis of any individual call (10 req/hour per user)
+- Search — full ~10k US-listed company universe from EDGAR
 
 ---
 
@@ -86,148 +86,142 @@ The result is a dataset and UI that answers: *does how a CEO talks on earnings c
 
 ### Prerequisites
 
-- Docker and Docker Compose
-- An [Anthropic API key](https://console.anthropic.com/)
-- An [FMP API key](https://site.financialmodelingprep.com/) (recommended — enables richer transcript archives and the earnings calendar)
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- [Anthropic API key](https://console.anthropic.com/) — required for scoring
+- [FMP API key](https://site.financialmodelingprep.com/) — strongly recommended (structured transcript archives going back years, plus the earnings calendar)
 
-### 1. Clone and configure
+### 1. Clone
 
 ```bash
 git clone https://github.com/njkarp06-design/earnings_sentiment_project.git
 cd earnings_sentiment_project
-cp .env.example .env   # then fill in your keys (see Environment Variables below)
 ```
 
-### 2. Start
+### 2. Configure
+
+```bash
+cp .env.example .env
+```
+
+At minimum, set these three in `.env`:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+FMP_API_KEY=...
+EDGAR_USER_AGENT=YourName contact@yourcompany.com   # SEC requires a real contact
+```
+
+See [Environment variables](#environment-variables) for the full reference.
+
+### 3. Start
 
 ```bash
 docker compose up --build
 ```
 
-The first run seeds the full EDGAR company universe (~10k companies) and immediately begins ingesting transcripts for the configured tickers. Allow 2–3 minutes for the first scored call to appear.
+On first run the ingestor seeds the full EDGAR company universe (~10k US-listed companies) then immediately begins scanning transcripts for the configured tickers. Allow 2–3 minutes for the first scored call to appear in the feed.
 
-### 3. Open
+### 4. Open
 
-| Service | URL |
+| | URL |
 |---|---|
-| Frontend | http://localhost:3000 |
+| **App** | http://localhost:3000 |
 | BFF API | http://localhost:3001 |
 | Kafka UI | http://localhost:8080 |
 | Ingestor trigger API | http://localhost:8001 |
 
----
+### Seed demo data
 
-## Environment variables
-
-Create a `.env` file in the project root. All variables are optional unless marked **required**.
-
-```bash
-# ── API keys ──────────────────────────────────────────────────────────────────
-
-# Required — powers the scoring service and the Inspect feature
-ANTHROPIC_API_KEY=sk-ant-...
-
-# Strongly recommended — unlocks structured transcript archives (years of history)
-# and the earnings calendar endpoint
-FMP_API_KEY=...
-
-# Optional — Alpha Vantage free tier (25 req/day), used only for on-demand single-ticker fetches
-ALPHAVANTAGE_API_KEY=...
-
-# ── Auth ──────────────────────────────────────────────────────────────────────
-
-# Required — change this to a long random string in production
-JWT_SECRET=change-me-in-production
-
-# ── Ingestor ──────────────────────────────────────────────────────────────────
-
-# SEC requires a meaningful user agent: "Company contact@email.com"
-EDGAR_USER_AGENT=YourName contact@yourcompany.com
-
-# Comma-separated list of tickers the pipeline monitors automatically
-TICKERS=AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,JPM,JNJ,XOM
-
-# How far back to scan for historical transcripts on startup (days)
-LOOKBACK_DAYS=730
-
-# How often to re-scan the full ticker list (hours)
-SCHEDULE_INTERVAL_HOURS=2
-
-# ── Scoring ───────────────────────────────────────────────────────────────────
-
-# Claude model used for scoring (defaults to claude-sonnet-4-6)
-SCORING_MODEL=claude-sonnet-4-6
-
-# ── Notifications (optional) ──────────────────────────────────────────────────
-
-# Set to "resend" to enable email notifications when portfolio companies report
-NOTIFICATION_PROVIDER=none
-RESEND_API_KEY=...
-NOTIFY_FROM_EMAIL=onboarding@resend.dev
-APP_URL=http://localhost:3000
-
-# ── MongoDB (Docker Compose defaults) ────────────────────────────────────────
-
-MONGO_ROOT_USER=admin
-MONGO_ROOT_PASSWORD=password
-
-# ── Frontend ──────────────────────────────────────────────────────────────────
-
-# BFF URL — override if deploying frontend separately
-NEXT_PUBLIC_API_URL=http://localhost:3001
-CORS_ORIGIN=http://localhost:3000
-```
-
----
-
-## BFF API
-
-Base URL: `http://localhost:3001`
-
-**Public**
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/feed` | Latest 50 scored calls (last 12 months), deduplicated by call date |
-| `GET` | `/feed?since=<ISO>` | Incremental feed — only items correlated after the given timestamp |
-| `GET` | `/leaderboard` | Companies ranked by avg 7d post-call return |
-| `GET` | `/sectors` | Sector summary stats (avg returns, win rate, company count) |
-| `GET` | `/sectors/:sector` | Sector drift path + per-company rankings |
-| `GET` | `/pulse` | Market pulse bar — avg confidence + 7d return per sector |
-| `GET` | `/companies/:ticker/history` | All calls for a ticker, newest first |
-| `GET` | `/companies/:ticker/latest` | Most recent call for a ticker |
-| `GET` | `/companies/:ticker/accuracy` | Track record by score bucket (high/mid/low) |
-| `GET` | `/companies/:ticker` | Basic company info from EDGAR universe |
-| `GET` | `/search?q=` | Search company universe by ticker or name |
-| `GET` | `/calendar` | Upcoming earnings (30 days) via FMP |
-
-**Auth required** (`Authorization: Bearer <token>`)
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/auth/register` | Create account |
-| `POST` | `/auth/login` | Sign in, returns JWT |
-| `GET` | `/auth/me` | Current user profile |
-| `PATCH` | `/auth/preferences` | Update notification settings |
-| `GET` | `/portfolio` | Watchlist items with latest earnings data |
-| `POST` | `/portfolio/:ticker` | Add ticker to watchlist |
-| `DELETE` | `/portfolio/:ticker` | Remove ticker from watchlist |
-| `GET` | `/suggestions` | AI-recommended companies based on watchlist sectors |
-| `POST` | `/companies/:ticker/ingest` | Trigger on-demand EDGAR+FMP scan for a ticker |
-| `POST` | `/companies/rebackfill` | Force re-score all tracked tickers |
-| `POST` | `/inspect` | SSE stream — Claude deep analysis of a single call |
-
----
-
-## Demo data
-
-To populate the UI without waiting for live ingestion, run the demo injection script while the stack is up:
+To populate all pages immediately without waiting for live ingestion:
 
 ```bash
 python inject_demo_data.py
 ```
 
-This writes a set of realistic mock `price_reactions` records to MongoDB so all pages render immediately.
+---
+
+## Environment variables
+
+All values are optional unless marked **required**.
+
+### Core
+
+| Variable | Default | Notes |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | — | **Required.** Powers scoring and the Inspect feature |
+| `FMP_API_KEY` | — | Strongly recommended. Enables structured transcript archives and `/calendar` |
+| `ALPHAVANTAGE_API_KEY` | — | Optional. Free tier (25 req/day) — used only for on-demand single-ticker fetches |
+| `JWT_SECRET` | `changeme` | **Required in production.** Use a long random string |
+| `EDGAR_USER_AGENT` | `EarningsSentimentResearch contact@example.com` | SEC requires a real company name and contact email |
+
+### Ingestor
+
+| Variable | Default | Notes |
+|---|---|---|
+| `TICKERS` | `AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,JPM,JNJ,XOM` | Comma-separated list of tickers the pipeline monitors automatically |
+| `LOOKBACK_DAYS` | `730` | How far back to scan for historical transcripts on startup |
+| `SCHEDULE_INTERVAL_HOURS` | `2` | How often to re-scan the full ticker list |
+
+### Scoring
+
+| Variable | Default | Notes |
+|---|---|---|
+| `SCORING_MODEL` | `claude-sonnet-4-6` | Claude model ID to use for scoring |
+
+### Notifications (optional)
+
+| Variable | Default | Notes |
+|---|---|---|
+| `NOTIFICATION_PROVIDER` | `none` | Set to `resend` to enable email alerts |
+| `RESEND_API_KEY` | — | Required if `NOTIFICATION_PROVIDER=resend` |
+| `NOTIFY_FROM_EMAIL` | `onboarding@resend.dev` | Sender address |
+| `APP_URL` | `http://localhost:3000` | Used in notification email links |
+
+### Frontend / networking
+
+| Variable | Default | Notes |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:3001` | BFF URL as seen by the browser |
+| `CORS_ORIGIN` | `http://localhost:3000` | Allowed CORS origin for the BFF |
+
+---
+
+## API reference
+
+Base URL: `http://localhost:3001`
+
+### Public endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/feed` | Latest 50 scored calls (last 12 months) |
+| `GET` | `/feed?since=<ISO>` | Incremental feed — items correlated after timestamp |
+| `GET` | `/leaderboard` | Tickers ranked by avg 7d post-call return |
+| `GET` | `/sectors` | Summary stats per sector (avg returns, win rate) |
+| `GET` | `/sectors/:sector` | Drift path + company rankings for one sector |
+| `GET` | `/pulse` | Market pulse — avg confidence + return per sector |
+| `GET` | `/search?q=` | Search ~10k company universe by ticker or name |
+| `GET` | `/calendar` | Upcoming earnings (30 days) with historical context |
+| `GET` | `/companies/:ticker/history` | All scored calls for a ticker |
+| `GET` | `/companies/:ticker/latest` | Most recent call |
+| `GET` | `/companies/:ticker/accuracy` | Track record by confidence bucket |
+| `GET` | `/companies/:ticker` | Company info from EDGAR universe |
+
+### Authenticated endpoints (`Authorization: Bearer <token>`)
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/auth/register` | Create account |
+| `POST` | `/auth/login` | Sign in — returns JWT |
+| `GET` | `/auth/me` | Current user + notification prefs |
+| `PATCH` | `/auth/preferences` | Update notification settings |
+| `GET` | `/portfolio` | Watchlist with latest earnings data |
+| `POST` | `/portfolio/:ticker` | Add to watchlist |
+| `DELETE` | `/portfolio/:ticker` | Remove from watchlist |
+| `GET` | `/suggestions` | Recommended companies based on watchlist sectors |
+| `POST` | `/companies/:ticker/ingest` | Trigger on-demand scan for a ticker |
+| `POST` | `/companies/rebackfill` | Force re-score all tracked tickers |
+| `POST` | `/inspect` | SSE stream — Claude deep analysis of a call (10 req/hour) |
 
 ---
 
@@ -235,32 +229,32 @@ This writes a set of realistic mock `price_reactions` records to MongoDB so all 
 
 ```
 earnings_sentiment_project/
-├── ingestor/              # Python — EDGAR/FMP/AV ingestion, Kafka producer
-├── scoring-service/       # Python — Claude scoring, Kafka consumer/producer
-├── correlation-service/   # Python — yfinance price correlation, Kafka consumer
-├── bff/                   # Node.js Express — REST API, JWT auth, MongoDB queries
-├── frontend/              # Next.js 14 — full UI
+├── ingestor/              # EDGAR/FMP/Alpha Vantage ingestion + Kafka producer
+├── scoring-service/       # Claude scoring — Kafka consumer/producer
+├── correlation-service/   # yfinance price correlation — Kafka consumer
+├── bff/                   # Node.js Express REST API + JWT auth
+├── frontend/              # Next.js 14 App Router UI
 ├── infra/                 # Terraform — AWS ECS, MSK, ALB, ECR, Secrets Manager
 ├── mongo/                 # MongoDB init scripts
 ├── docker-compose.yml
-└── inject_demo_data.py    # Seed script for demo/testing
+└── inject_demo_data.py    # Demo/test data seed script
 ```
 
 ---
 
-## Production (AWS)
+## Deploying to AWS
 
-The `infra/` directory contains Terraform modules for deploying to AWS:
+The `infra/` directory contains Terraform for a full production deployment:
 
-- **ECS Fargate** — all five application services as containers
-- **Amazon MSK** — managed Kafka
-- **MongoDB Atlas** — managed MongoDB (configured via Secrets Manager)
-- **ALB** — public load balancers for BFF and frontend
-- **ECR** — container image registry
-- **CloudWatch** — structured logs from all services
-- **GitHub Actions** — CI/CD pipeline (`.github/workflows/`)
+- **ECS Fargate** for all five application services
+- **Amazon MSK** (managed Kafka)
+- **MongoDB Atlas** via Secrets Manager
+- **ALBs** for BFF and frontend
+- **ECR** for container images
+- **CloudWatch** for structured logs
+- **GitHub Actions** CI/CD (`.github/workflows/`)
 
-See [infra/README.md](infra/) for Terraform setup and the required GitHub Secrets.
+Six GitHub Secrets are needed before the first deploy — see `infra/` for the full checklist.
 
 ---
 
