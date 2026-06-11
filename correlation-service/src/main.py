@@ -56,7 +56,7 @@ def _backfill_loop(mongo_uri: str) -> None:
     runs on every cycle too.
     """
     mongo = MongoClient(mongo_uri)
-    db = mongo.earnings_sentiment
+    db = mongo.get_default_database()
     while True:
         try:
             backfill_missing_sectors(db)
@@ -78,7 +78,7 @@ def _raw_prices_loop(bootstrap_servers: str, mongo_uri: str) -> None:
         value_deserializer=lambda b: json.loads(b.decode("utf-8")),
     )
     mongo = MongoClient(mongo_uri)
-    db = mongo.earnings_sentiment
+    db = mongo.get_default_database()
 
     try:
         for kafka_msg in consumer:
@@ -129,7 +129,7 @@ def main() -> None:
     )
 
     mongo = MongoClient(cfg.mongo_uri)
-    db = mongo.earnings_sentiment
+    db = mongo.get_default_database()
 
     logger.info(
         "Correlation service ready | %s (main) + %s (background cache)",

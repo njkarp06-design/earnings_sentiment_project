@@ -40,8 +40,8 @@ export default function PulseBar() {
             {s.avg_confidence}
           </span>
           {s.avg_return_7d != null && (
-            <span className={`font-mono tabular-nums ${s.avg_return_7d >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-              {s.avg_return_7d >= 0 ? '+' : ''}{s.avg_return_7d}%
+            <span className={`font-mono tabular-nums ${s.avg_return_7d > 0 ? 'text-emerald-600' : s.avg_return_7d < 0 ? 'text-red-600' : 'text-slate-500'}`}>
+              {s.avg_return_7d > 0 ? '+' : ''}{parseFloat(s.avg_return_7d).toFixed(2)}%
             </span>
           )}
         </div>
