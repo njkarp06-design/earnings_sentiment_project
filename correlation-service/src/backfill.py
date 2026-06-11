@@ -25,13 +25,19 @@ def backfill_pending_returns(db) -> None:
 
     pending = list(
         db.price_reactions.find(
-            {"$or": [
-                {"return_1d": None},
-                {"return_3d": None},
-                {"return_7d": None},
-                # price_series absent/null despite returns being filled.
-                # MongoDB {field: null} matches both explicit null AND missing field.
-                {"price_series": None, "call_date": {"$gte": two_years_ago}},
+            # Scope all conditions to the last 2 years so ancient records with
+            # missing data don't consume yfinance rate budget on every cycle.
+            {"$and": [
+                {"call_date": {"$gte": two_years_ago}},
+                {"$or": [
+                    {"return_1d": None},
+                    {"return_3d": None},
+                    {"return_7d": None},
+                    # price_series absent/null despite returns being filled —
+                    # happens when the initial yfinance call failed for price_series
+                    # or for records correlated before price_series was added.
+                    {"price_series": None},
+                ]},
             ]},
             {"filing_id": 1, "ticker": 1, "call_date": 1},
         )
@@ -66,7 +72,12 @@ def backfill_pending_returns(db) -> None:
             continue
 
         update["backfilled_at"] = datetime.now(timezone.utc).isoformat()
-        db.price_reactions.update_one({"filing_id": filing_id}, {"$set": update})
+        query = (
+            {"filing_id": filing_id}
+            if filing_id
+            else {"ticker": ticker, "call_date": call_date}
+        )
+        db.price_reactions.update_one(query, {"$set": update})
         logger.info(
             "Backfill ✓ %-6s  1d=%s  3d=%s  7d=%s",
             ticker,
@@ -95,15 +106,16 @@ def backfill_missing_sectors(db) -> None:
     filled = 0
 
     for ticker in tickers:
+        ticker = ticker.upper()
         # Use cached value in companies first, avoid redundant yfinance calls
-        company_doc = db.companies.find_one({"ticker": ticker.upper()}, {"sector": 1})
+        company_doc = db.companies.find_one({"ticker": ticker}, {"sector": 1})
         sector = (company_doc.get("sector") or None) if company_doc else None
 
         if not sector:
             sector = _yfinance_sector(ticker)
             if sector:
                 db.companies.update_one(
-                    {"ticker": ticker.upper()},
+                    {"ticker": ticker},
                     {"$set": {"sector": sector}},
                     upsert=True,
                 )
