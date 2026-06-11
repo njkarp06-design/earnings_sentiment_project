@@ -1,161 +1,115 @@
-import { getToken, clearToken } from './auth';
+import {
+  FEED, LEADERBOARD, COMPANIES, SECTORS, SECTOR_DETAIL,
+  CALENDAR, PULSE, SEARCH_INDEX,
+} from './demoData';
+import { setToken, getToken, clearToken } from './auth';
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// ─── Local-storage portfolio (keeps demo interactive) ────────────────────────
 
-async function apiFetch(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, options);
-  if (res.status === 401) {
-    clearToken(); // Expired / invalid JWT — clear it so the UI snaps back to logged-out state.
-    throw new Error('Session expired — please log in again.');
-  }
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || res.statusText);
-  }
-  return res.json();
+const PORTFOLIO_KEY = 'esp_demo_portfolio';
+
+function storedPortfolio() {
+  if (typeof window === 'undefined') return [];
+  try { return JSON.parse(localStorage.getItem(PORTFOLIO_KEY) || '[]'); }
+  catch { return []; }
+}
+function savePortfolio(tickers) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(tickers));
 }
 
-function authHeaders() {
-  const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// ── Public endpoints ─────────────────────────────────────────────────────────
+// ─── Public read endpoints ────────────────────────────────────────────────────
 
-export const getFeed = () => apiFetch('/feed');
-export const getFeedSince = (since) => apiFetch(`/feed?since=${encodeURIComponent(since)}`);
-export const getLeaderboard = () => apiFetch('/leaderboard');
-export const getCompanyHistory = (ticker) => apiFetch(`/companies/${ticker}/history`);
-export const getCompanyInfo    = (ticker) => apiFetch(`/companies/${ticker}`);
-export const getPrices = (ticker, days = 90) => apiFetch(`/prices/${ticker}?days=${days}`);
-export const getAccuracy = (ticker) => apiFetch(`/companies/${ticker}/accuracy`);
-export const getCalendar = (from, to) => {
-  const params = new URLSearchParams();
-  if (from) params.set('from', from);
-  if (to)   params.set('to', to);
-  return apiFetch(`/calendar${params.toString() ? '?' + params : ''}`, { headers: authHeaders() });
+export const getFeed        = async () => FEED;
+export const getFeedSince   = async ()  => [];   // no live updates in demo
+export const getLeaderboard = async () => LEADERBOARD;
+
+export const getCompanyHistory = async (ticker) =>
+  COMPANIES[ticker.toUpperCase()]?.history ?? [];
+
+export const getCompanyInfo = async (ticker) =>
+  COMPANIES[ticker.toUpperCase()]?.info ?? null;
+
+export const getPrices = async () => [];   // price chart not needed for demo
+
+export const getAccuracy = async (ticker) =>
+  COMPANIES[ticker.toUpperCase()]?.accuracy ?? { total: 0, buckets: [] };
+
+export const getCalendar = async () => CALENDAR;
+
+export const searchCompanies = async (q) => {
+  const query = q.toLowerCase().trim();
+  if (!query) return [];
+  return SEARCH_INDEX.filter(c =>
+    c.ticker.toLowerCase().includes(query) ||
+    c.company_name.toLowerCase().includes(query)
+  ).slice(0, 6);
 };
-export const searchCompanies = (q) => apiFetch(`/search?q=${encodeURIComponent(q)}`);
 
-// ── Auth endpoints ────────────────────────────────────────────────────────────
+export const getPulse        = async () => PULSE;
+export const getSectors      = async () => SECTORS;
+export const getSectorDetail = async (sector) => SECTOR_DETAIL[sector] ?? null;
 
-export const getMe = () =>
-  apiFetch('/auth/me', { headers: authHeaders() });
+export const getCompanyLatest = async (ticker) =>
+  COMPANIES[ticker.toUpperCase()]?.history?.[0] ?? null;
 
-export const updatePreferences = (prefs) =>
-  apiFetch('/auth/preferences', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(prefs),
-  });
+export const triggerIngest = async () => ({ ok: true });
 
-export const login = (email, password) =>
-  apiFetch('/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
+// ─── Auth (demo: any credentials succeed, token in localStorage) ─────────────
 
-export const register = (email, password) =>
-  apiFetch('/auth/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
+export const login = async (email, password) => {  // eslint-disable-line no-unused-vars
+  await sleep(350);
+  const token = `demo-${Date.now()}`;
+  setToken(token);
+  return { token };
+};
 
-// ── Portfolio endpoints (require JWT) ─────────────────────────────────────────
+export const register = async (email, password) => {  // eslint-disable-line no-unused-vars
+  await sleep(350);
+  const token = `demo-${Date.now()}`;
+  setToken(token);
+  return { token };
+};
 
-export const getPortfolioItems = () =>
-  apiFetch('/portfolio', { headers: authHeaders() });
+export const getMe = async () => ({ email: 'demo@example.com' });
 
-export const addToPortfolio = (ticker) =>
-  apiFetch(`/portfolio/${ticker}`, {
-    method: 'POST',
-    headers: authHeaders(),
-  });
+export const updatePreferences = async () => ({ ok: true });
 
-export const removeFromPortfolio = (ticker) =>
-  apiFetch(`/portfolio/${ticker}`, {
-    method: 'DELETE',
-    headers: authHeaders(),
-  });
+// ─── Portfolio (localStorage-backed so watchlist actually persists) ───────────
 
-export const getSuggestions = () =>
-  apiFetch('/suggestions', { headers: authHeaders() });
+export const getPortfolioItems = async () =>
+  storedPortfolio().map(t => ({ ticker: t }));
 
-export const getPulse       = () => apiFetch('/pulse');
-export const getSectors     = () => apiFetch('/sectors');
-export const getSectorDetail = (sector) => apiFetch(`/sectors/${encodeURIComponent(sector)}`);
+export const addToPortfolio = async (ticker) => {
+  const list = storedPortfolio();
+  if (!list.includes(ticker)) savePortfolio([...list, ticker]);
+  return { ok: true };
+};
 
-export const getCompanyLatest = (ticker) =>
-  apiFetch(`/companies/${ticker}/latest`);
+export const removeFromPortfolio = async (ticker) => {
+  savePortfolio(storedPortfolio().filter(t => t !== ticker));
+  return { ok: true };
+};
 
-// Trigger an on-demand EDGAR scan for a ticker that has no data yet.
-// Requires auth. Returns immediately — caller should poll getCompanyLatest.
-export const triggerIngest = (ticker) =>
-  apiFetch(`/companies/${ticker}/ingest`, {
-    method: 'POST',
-    headers: authHeaders(),
-  });
+export const getSuggestions = async () => [];
 
-// ── Inspect — SSE streaming (require JWT) ─────────────────────────────────────
-// Calls onText(chunk) progressively, then onDone() when the stream ends.
-export async function inspectCall(data, onText, onDone, onError) {
-  let response;
-  try {
-    response = await fetch(`${BASE}/inspect`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify(data),
-    });
-  } catch (err) {
-    onError?.(err.message);
-    return;
+// ─── Inspect — fake streaming analysis ───────────────────────────────────────
+
+export async function inspectCall(data, onText, onDone, onError) {  // eslint-disable-line no-unused-vars
+  const score  = data?.confidence_score ?? 65;
+  const ticker = data?.ticker ?? 'this company';
+
+  const analysis = score >= 70
+    ? `Analyzing ${ticker} earnings call...\n\nManagement tone was notably confident throughout the prepared remarks and Q&A session. Key signals detected:\n\n• Language confidence index: high — decisive forward-looking statements with minimal hedging\n• Guidance raised with explicit numerical targets, removing near-term uncertainty\n• CEO referenced pipeline visibility multiple times, signaling demand clarity\n• CFO gross-margin commentary was constructive — cost discipline intact\n• Q&A responses were direct; no evasiveness on the key growth metrics\n\nOverall sentiment score: ${score}/100 — strong bullish signal. Beat-and-raise narrative is intact heading into the next week of trading.`
+    : score >= 48
+    ? `Analyzing ${ticker} earnings call...\n\nManagement tone was measured throughout, with a balance of optimism and caution. Key signals detected:\n\n• Language confidence index: neutral — forward-looking statements present but qualified\n• Guidance maintained at the midpoint with macro hedges\n• CEO acknowledged headwinds but framed them as temporary\n• Margin commentary was mixed — cost savings offset by pricing pressure\n• Q&A showed some reluctance on the recovery timeline\n\nOverall sentiment score: ${score}/100 — neutral signal. Stock likely range-bound near-term; watch for macro catalysts.`
+    : `Analyzing ${ticker} earnings call...\n\nManagement tone was defensive throughout the call. Key signals detected:\n\n• Language confidence index: low — heavy use of qualifying language and caveats\n• Guidance reduced or withdrawn; visibility acknowledged as poor\n• CEO avoided direct answers on recovery timing in Q&A\n• Restructuring language suggests deeper operational issues\n• Multiple references to "challenging environment" and "elevated uncertainty"\n\nOverall sentiment score: ${score}/100 — bearish signal. Expectations reset underway; any near-term bounce is likely a fade opportunity.`;
+
+  for (const char of analysis) {
+    await sleep(12);
+    onText(char);
   }
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: response.statusText }));
-    onError?.(err.error || response.statusText);
-    return;
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-
-  // Buffer incomplete lines across chunk boundaries so partial JSON is never dropped.
-  let buffer = '';
-
-  const processLine = (line) => {
-    if (!line.startsWith('data: ')) return false;
-    const payload = line.slice(6).trim();
-    if (payload === '[DONE]') { onDone?.(); return true; }
-    try {
-      const { text, error } = JSON.parse(payload);
-      if (error) { onError?.(error); return true; }
-      if (text) onText(text);
-    } catch { /* skip genuinely malformed lines */ }
-    return false;
-  };
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? ''; // keep the last (possibly incomplete) line
-
-      for (const line of lines) {
-        if (processLine(line)) return;
-      }
-    }
-
-    // Flush any data remaining in the buffer after the stream closes
-    if (buffer && processLine(buffer)) return;
-  } finally {
-    reader.cancel().catch(() => {});
-  }
-
   onDone?.();
 }
