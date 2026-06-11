@@ -2,7 +2,7 @@ import {
   FEED, LEADERBOARD, COMPANIES, SECTORS, SECTOR_DETAIL,
   CALENDAR, PULSE, SEARCH_INDEX,
 } from './demoData';
-import { setToken, getToken, clearToken } from './auth';
+import { setToken, clearToken } from './auth';  // eslint-disable-line no-unused-vars
 
 // ─── Local-storage portfolio (keeps demo interactive) ────────────────────────
 
@@ -73,14 +73,28 @@ export const register = async (email, password) => {  // eslint-disable-line no-
   return { token };
 };
 
-export const getMe = async () => ({ email: 'demo@example.com' });
+export const getMe = async () => ({
+  email: 'demo@example.com',
+  notifications_enabled: false,
+  notifications_email: 'demo@example.com',
+});
 
-export const updatePreferences = async () => ({ ok: true });
+export const updatePreferences = async (prefs) => ({
+  ok: true,
+  notifications_enabled: prefs?.notifications_enabled ?? false,
+  notifications_email:   prefs?.notifications_email   ?? 'demo@example.com',
+  email:                 'demo@example.com',
+});
 
 // ─── Portfolio (localStorage-backed so watchlist actually persists) ───────────
 
 export const getPortfolioItems = async () =>
-  storedPortfolio().map(t => ({ ticker: t }));
+  storedPortfolio().map(t => {
+    const ticker  = t.toUpperCase();
+    const company = COMPANIES[ticker];
+    const latest  = company?.history?.[0] ?? {};
+    return { ticker, company_name: company?.info?.name ?? ticker, ...latest };
+  });
 
 export const addToPortfolio = async (ticker) => {
   const list = storedPortfolio();
@@ -93,7 +107,25 @@ export const removeFromPortfolio = async (ticker) => {
   return { ok: true };
 };
 
-export const getSuggestions = async () => [];
+// Returns top companies by avg 7d return that are not already in the portfolio
+export const getSuggestions = async () => {
+  const portfolio = new Set(storedPortfolio().map(t => t.toUpperCase()));
+  return LEADERBOARD
+    .filter(co => !portfolio.has(co.ticker))
+    .slice(0, 6)
+    .map(co => {
+      const latest = COMPANIES[co.ticker]?.history?.[0] ?? {};
+      return {
+        ticker:           co.ticker,
+        company_name:     co.company_name,
+        sector:           COMPANIES[co.ticker]?.info?.sector ?? null,
+        confidence_score: latest.confidence_score  ?? null,
+        return_7d:        latest.return_7d          ?? null,
+        price_series:     latest.price_series       ?? null,
+        has_data:         true,
+      };
+    });
+};
 
 // ─── Inspect — fake streaming analysis ───────────────────────────────────────
 
