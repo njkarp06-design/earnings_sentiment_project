@@ -246,11 +246,15 @@ resource "aws_ecs_task_definition" "bff" {
         { containerPort = 3001, protocol = "tcp" }
       ]
       environment = [
-        { name = "PORT", value = "3001" },
+        { name = "PORT",          value = "3001" },
+        { name = "CORS_ORIGIN",   value = "http://${aws_lb.frontend.dns_name}" },
+        { name = "TICKERS",       value = var.tickers },
+        { name = "INGESTOR_URL",  value = var.ingestor_url },
       ]
       secrets = [
-        { name = "MONGO_URI",  valueFrom = aws_secretsmanager_secret.mongo_uri.arn },
-        { name = "JWT_SECRET", valueFrom = aws_secretsmanager_secret.jwt_secret.arn },
+        { name = "MONGO_URI",    valueFrom = aws_secretsmanager_secret.mongo_uri.arn },
+        { name = "JWT_SECRET",   valueFrom = aws_secretsmanager_secret.jwt_secret.arn },
+        { name = "FMP_API_KEY",  valueFrom = aws_secretsmanager_secret.fmp_api_key.arn },
       ]
       logConfiguration = {
         logDriver = "awslogs"

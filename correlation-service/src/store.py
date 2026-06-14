@@ -81,7 +81,7 @@ def get_company_sector(db, ticker: str) -> str | None:
     if sector:
         db.companies.update_one(
             {"ticker": ticker},
-            {"$set": {"sector": sector}},
+            {"$set": {"sector": sector}, "$setOnInsert": {"name": ticker}},
             upsert=True,
         )
         logger.info("Cached sector for %s: %s", ticker, sector)
@@ -89,13 +89,24 @@ def get_company_sector(db, ticker: str) -> str | None:
 
 
 def already_correlated(db, filing_id: str) -> bool:
-    return db.price_reactions.find_one({"filing_id": filing_id}) is not None
+    if not filing_id:
+        return False
+    doc = db.price_reactions.find_one({"filing_id": filing_id})
+    if doc is None:
+        return False
+    return "trade_brief" in doc and not doc.get("_mock")
 
 
 def upsert_price_reaction(db, doc: dict) -> None:
+    filing_id = doc.get("filing_id")
+    query = (
+        {"filing_id": filing_id}
+        if filing_id
+        else {"ticker": doc["ticker"], "call_date": doc["call_date"]}
+    )
     db.price_reactions.update_one(
-        {"filing_id": doc["filing_id"]},
-        {"$set": doc},
+        query,
+        {"$set": doc, "$unset": {"_mock": ""}},
         upsert=True,
     )
 

@@ -66,7 +66,13 @@ variable "tickers" {
 variable "lookback_days" {
   description = "Days to look back for filings on the ingestor's first run"
   type        = number
-  default     = 30
+  default     = 730
+}
+
+variable "ingestor_url" {
+  description = "Internal URL of the ingestor service — set when using Cloud Map or an internal ALB; empty disables on-demand ingest from BFF"
+  type        = string
+  default     = ""
 }
 
 variable "schedule_hour" {
