@@ -39,6 +39,7 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
           aws_secretsmanager_secret.anthropic_api_key.arn,
           aws_secretsmanager_secret.jwt_secret.arn,
           aws_secretsmanager_secret.fmp_api_key.arn,
+          aws_secretsmanager_secret.resend_api_key.arn,
         ]
       }
     ]

@@ -18,6 +18,7 @@ env:
 #   ANTHROPIC_API_KEY
 #   JWT_SECRET
 #   FMP_API_KEY             — optional; set to empty string if unused
+#   RESEND_API_KEY          — optional; set to enable portfolio email notifications
 
 jobs:
   # ── Job 0: Lint — must pass before anything deploys ──────────────────────────

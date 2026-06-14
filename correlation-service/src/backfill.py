@@ -117,7 +117,7 @@ def backfill_missing_sectors(db) -> None:
             if sector:
                 db.companies.update_one(
                     {"ticker": ticker},
-                    {"$set": {"sector": sector}},
+                    {"$set": {"sector": sector}, "$setOnInsert": {"name": ticker}},
                     upsert=True,
                 )
 

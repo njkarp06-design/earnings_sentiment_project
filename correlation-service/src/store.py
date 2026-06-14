@@ -81,7 +81,7 @@ def get_company_sector(db, ticker: str) -> str | None:
     if sector:
         db.companies.update_one(
             {"ticker": ticker},
-            {"$set": {"sector": sector}},
+            {"$set": {"sector": sector}, "$setOnInsert": {"name": ticker}},
             upsert=True,
         )
         logger.info("Cached sector for %s: %s", ticker, sector)
