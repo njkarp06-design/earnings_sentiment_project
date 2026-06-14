@@ -8,14 +8,13 @@ terraform {
     }
   }
 
-  # Remote state — run infra/bootstrap.sh once, then uncomment and fill in the bucket name.
-  # backend "s3" {
-  #   bucket         = "esp-tfstate-REPLACE_WITH_ACCOUNT_ID"
-  #   key            = "prod/terraform.tfstate"
-  #   region         = "us-east-1"
-  #   dynamodb_table = "esp-tfstate-lock"
-  #   encrypt        = true
-  # }
+  backend "s3" {
+    bucket         = "esp-tfstate-066971257799"
+    key            = "prod/terraform.tfstate"
+    region         = "us-east-1"
+    use_lockfile   = true
+    encrypt        = true
+  }
 }
 
 provider "aws" {
