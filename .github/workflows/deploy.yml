@@ -186,7 +186,18 @@ jobs:
           echo "Kafka-setup task: $TASK_ARN"
           echo "Waiting for completion (topics already exist on re-runs — that's fine)..."
 
-          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+          # Poll for up to 30 minutes (aws ecs wait times out at 10 min by default)
+          MAX_WAIT=1800
+          ELAPSED=0
+          until [ "$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" --query 'tasks[0].lastStatus' --output text)" = "STOPPED" ]; do
+            if [ $ELAPSED -ge $MAX_WAIT ]; then
+              echo "Timed out after ${MAX_WAIT}s waiting for kafka-setup task"
+              exit 1
+            fi
+            echo "Still waiting... (${ELAPSED}s elapsed)"
+            sleep 15
+            ELAPSED=$((ELAPSED + 15))
+          done
 
           EXIT_CODE=$(aws ecs describe-tasks \
             --cluster "$CLUSTER" \

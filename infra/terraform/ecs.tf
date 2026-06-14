@@ -55,6 +55,7 @@ resource "aws_ecs_task_definition" "kafka" {
         { name = "KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", value = "1" },
         { name = "KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR",            value = "1" },
         { name = "KAFKA_CFG_MIN_INSYNC_REPLICAS",                      value = "1" },
+        { name = "KAFKA_KRAFT_CLUSTER_ID",                             value = "MkU3OEVBNTcwNTJENDM2Qk" },
       ]
       logConfiguration = {
         logDriver = "awslogs"
