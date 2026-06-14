@@ -14,6 +14,6 @@ locals {
   # Log group names: all app services + kafka-setup one-shot + msk broker logs
   log_groups = toset(concat(
     tolist(local.app_services),
-    ["kafka-setup", "msk"]
+    ["kafka-setup", "kafka"]
   ))
 }

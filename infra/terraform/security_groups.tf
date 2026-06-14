@@ -76,9 +76,9 @@ resource "aws_security_group" "ecs" {
   tags = { Name = "${var.project_name}-ecs-sg" }
 }
 
-# MSK brokers — inbound PLAINTEXT Kafka only from ECS tasks
-resource "aws_security_group" "msk" {
-  name   = "${var.project_name}-msk-sg"
+# Self-hosted Kafka on ECS — inbound from ECS tasks only
+resource "aws_security_group" "kafka" {
+  name   = "${var.project_name}-kafka-sg"
   vpc_id = aws_vpc.main.id
 
   ingress {
@@ -89,6 +89,14 @@ resource "aws_security_group" "msk" {
     security_groups = [aws_security_group.ecs.id]
   }
 
+  ingress {
+    description = "Kafka controller port (internal)"
+    from_port   = 9093
+    to_port     = 9093
+    protocol    = "tcp"
+    self        = true
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -96,5 +104,5 @@ resource "aws_security_group" "msk" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "${var.project_name}-msk-sg" }
+  tags = { Name = "${var.project_name}-kafka-sg" }
 }

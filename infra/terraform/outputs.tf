@@ -13,9 +13,9 @@ output "ecr_registry" {
   value       = local.ecr_registry
 }
 
-output "msk_bootstrap_brokers" {
-  description = "MSK PLAINTEXT bootstrap broker string (comma-separated host:port pairs)"
-  value       = aws_msk_cluster.main.bootstrap_brokers
+output "kafka_bootstrap_brokers" {
+  description = "Kafka bootstrap broker (Cloud Map DNS, resolvable within the VPC)"
+  value       = "kafka.esp.local:9092"
 }
 
 output "transcript_bucket" {
