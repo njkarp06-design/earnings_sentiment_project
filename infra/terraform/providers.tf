@@ -12,7 +12,7 @@ terraform {
     bucket         = "esp-tfstate-066971257799"
     key            = "prod/terraform.tfstate"
     region         = "us-east-1"
-    use_lockfile   = true
+    dynamodb_table = "esp-tfstate-lock"
     encrypt        = true
   }
 }
