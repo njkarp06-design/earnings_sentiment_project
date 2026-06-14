@@ -6,6 +6,7 @@ import { getPortfolioItems, getSuggestions, getMe, updatePreferences } from '@/l
 import FeedCard from '@/components/FeedCard';
 import SuggestionCard from '@/components/SuggestionCard';
 import SearchOverlay from '@/components/SearchOverlay';
+import Link from 'next/link';
 import { usePortfolio } from '@/context/PortfolioContext';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -175,9 +176,9 @@ export default function PortfolioPage() {
           <p className="text-slate-500 text-sm max-w-xs text-center">
             Search for a company on the feed and click the bookmark icon to add it here.
           </p>
-          <a href="/" className="mt-2 text-blue-700 hover:text-blue-600 text-sm transition-colors font-medium">
+          <Link href="/" className="mt-2 text-blue-700 hover:text-blue-600 text-sm transition-colors font-medium">
             Browse the feed →
-          </a>
+          </Link>
         </div>
       )}
 
