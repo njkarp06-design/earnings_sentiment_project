@@ -54,14 +54,5 @@ resource "aws_msk_cluster" "main" {
     }
   }
 
-  logging {
-    broker_logs {
-      cloudwatch_logs {
-        enabled   = true
-        log_group = aws_cloudwatch_log_group.services["msk"].name
-      }
-    }
-  }
-
   tags = { Name = "${var.project_name}-kafka" }
 }
