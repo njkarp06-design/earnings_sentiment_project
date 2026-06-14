@@ -21,6 +21,6 @@ class Config:
                 "mongodb://admin:password@localhost:27017/earnings_sentiment?authSource=admin",
             ),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
-            model=os.getenv("SCORING_MODEL", "claude-haiku-4-5-20251001"),
+            model=os.getenv("SCORING_MODEL", "claude-sonnet-4-6"),
             max_transcript_chars=int(os.getenv("MAX_TRANSCRIPT_CHARS", "150000")),
         )
