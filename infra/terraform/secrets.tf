@@ -38,7 +38,7 @@ resource "aws_secretsmanager_secret" "fmp_api_key" {
 
 resource "aws_secretsmanager_secret_version" "fmp_api_key" {
   secret_id     = aws_secretsmanager_secret.fmp_api_key.id
-  secret_string = var.fmp_api_key
+  secret_string = var.fmp_api_key != "" ? var.fmp_api_key : "disabled"
 }
 
 resource "aws_secretsmanager_secret" "resend_api_key" {
@@ -48,5 +48,5 @@ resource "aws_secretsmanager_secret" "resend_api_key" {
 
 resource "aws_secretsmanager_secret_version" "resend_api_key" {
   secret_id     = aws_secretsmanager_secret.resend_api_key.id
-  secret_string = var.resend_api_key
+  secret_string = var.resend_api_key != "" ? var.resend_api_key : "disabled"
 }
