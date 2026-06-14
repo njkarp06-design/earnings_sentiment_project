@@ -192,9 +192,13 @@ resource "aws_ecs_task_definition" "correlation_service" {
       environment = [
         { name = "KAFKA_BOOTSTRAP_SERVERS", value = aws_msk_cluster.main.bootstrap_brokers },
         { name = "PRICE_FETCH_DAYS",        value = tostring(var.price_fetch_days) },
+        { name = "NOTIFICATION_PROVIDER",   value = var.notification_provider },
+        { name = "APP_URL",                 value = var.app_url },
+        { name = "NOTIFY_FROM_EMAIL",       value = var.notify_from_email },
       ]
       secrets = [
-        { name = "MONGO_URI", valueFrom = aws_secretsmanager_secret.mongo_uri.arn },
+        { name = "MONGO_URI",       valueFrom = aws_secretsmanager_secret.mongo_uri.arn },
+        { name = "RESEND_API_KEY",  valueFrom = aws_secretsmanager_secret.resend_api_key.arn },
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -246,8 +250,10 @@ resource "aws_ecs_task_definition" "bff" {
         { containerPort = 3001, protocol = "tcp" }
       ]
       environment = [
-        { name = "PORT",        value = "3001" },
-        { name = "CORS_ORIGIN", value = "http://${aws_lb.frontend.dns_name}" },
+        { name = "PORT",          value = "3001" },
+        { name = "CORS_ORIGIN",   value = "http://${aws_lb.frontend.dns_name}" },
+        { name = "TICKERS",       value = var.tickers },
+        { name = "INGESTOR_URL",  value = var.ingestor_url },
       ]
       secrets = [
         { name = "MONGO_URI",         valueFrom = aws_secretsmanager_secret.mongo_uri.arn },

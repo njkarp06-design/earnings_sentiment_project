@@ -66,7 +66,7 @@ variable "tickers" {
 variable "lookback_days" {
   description = "Days to look back for filings on the ingestor's first run"
   type        = number
-  default     = 30
+  default     = 730
 }
 
 variable "schedule_interval_hours" {
@@ -85,4 +85,35 @@ variable "price_fetch_days" {
   description = "Calendar days of price data fetched after each earnings call"
   type        = number
   default     = 12
+}
+
+variable "ingestor_url" {
+  description = "Internal URL of the ingestor service — set when using Cloud Map or an internal ALB; empty disables on-demand ingest from BFF"
+  type        = string
+  default     = ""
+}
+
+variable "notification_provider" {
+  description = "Notification provider for correlation-service alerts (none | resend)"
+  type        = string
+  default     = "none"
+}
+
+variable "app_url" {
+  description = "Public URL of the frontend — embedded in notification emails"
+  type        = string
+  default     = ""
+}
+
+variable "notify_from_email" {
+  description = "From address used in notification emails"
+  type        = string
+  default     = "onboarding@resend.dev"
+}
+
+variable "resend_api_key" {
+  description = "Resend API key for email notifications — leave empty to disable"
+  type        = string
+  default     = ""
+  sensitive   = true
 }
