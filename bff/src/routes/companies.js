@@ -215,7 +215,7 @@ router.get('/:ticker', async (req, res, next) => {
     const db     = mongoose.connection.db;
     const company = await db.collection('companies').findOne({ ticker });
     if (!company) return res.status(404).json({ error: `No company found for ${ticker}` });
-    const { _id, ...info } = company;
+    const { _id, ...info } = company; // eslint-disable-line no-unused-vars
     res.json(info);
   } catch (err) {
     next(err);
