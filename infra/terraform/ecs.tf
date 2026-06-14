@@ -109,6 +109,7 @@ resource "aws_ecs_task_definition" "kafka_setup" {
       command = [
         "/bin/bash", "-c",
         join(" && ", [
+          "echo 'Waiting for Kafka to be ready...' && until kafka-topics --bootstrap-server $KAFKA_BOOTSTRAP_SERVERS --list > /dev/null 2>&1; do echo 'Kafka not ready, retrying in 10s...'; sleep 10; done && echo 'Kafka is ready'",
           "kafka-topics --bootstrap-server $KAFKA_BOOTSTRAP_SERVERS --create --if-not-exists --topic raw-transcripts --replication-factor 1 --partitions 3",
           "kafka-topics --bootstrap-server $KAFKA_BOOTSTRAP_SERVERS --create --if-not-exists --topic raw-prices --replication-factor 1 --partitions 3",
           "kafka-topics --bootstrap-server $KAFKA_BOOTSTRAP_SERVERS --create --if-not-exists --topic scored-transcripts --replication-factor 1 --partitions 3",
