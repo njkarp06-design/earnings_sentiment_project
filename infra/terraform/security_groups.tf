@@ -91,8 +91,8 @@ resource "aws_security_group" "kafka" {
 
   ingress {
     description = "Kafka controller port (internal)"
-    from_port   = 9093
-    to_port     = 9093
+    from_port   = 29093
+    to_port     = 29093
     protocol    = "tcp"
     self        = true
   }

@@ -27,35 +27,36 @@ resource "aws_ecs_task_definition" "kafka" {
   family                   = "${var.project_name}-kafka"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 512
-  memory                   = 1024
+  cpu                      = 1024
+  memory                   = 2048
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
 
   container_definitions = jsonencode([
     {
       name      = "kafka"
-      image     = "bitnami/kafka:3.6"
+      image     = "confluentinc/cp-kafka:7.5.0"
       essential = true
       portMappings = [
         { containerPort = 9092, protocol = "tcp" },
-        { containerPort = 9093, protocol = "tcp" },
+        { containerPort = 29093, protocol = "tcp" },
       ]
       environment = [
-        { name = "KAFKA_CFG_PROCESS_ROLES",                            value = "broker,controller" },
-        { name = "KAFKA_CFG_NODE_ID",                                  value = "1" },
-        { name = "KAFKA_CFG_CONTROLLER_QUORUM_VOTERS",                 value = "1@127.0.0.1:9093" },
-        { name = "KAFKA_CFG_LISTENERS",                                value = "PLAINTEXT://0.0.0.0:9092,CONTROLLER://127.0.0.1:9093" },
-        { name = "KAFKA_CFG_ADVERTISED_LISTENERS",                     value = "PLAINTEXT://kafka.esp.local:9092" },
-        { name = "KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP",           value = "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT" },
-        { name = "KAFKA_CFG_CONTROLLER_LISTENER_NAMES",                value = "CONTROLLER" },
-        { name = "KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE",                value = "false" },
-        { name = "KAFKA_CFG_DEFAULT_REPLICATION_FACTOR",               value = "1" },
-        { name = "KAFKA_CFG_NUM_PARTITIONS",                           value = "3" },
-        { name = "KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR",         value = "1" },
-        { name = "KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", value = "1" },
-        { name = "KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR",            value = "1" },
-        { name = "KAFKA_CFG_MIN_INSYNC_REPLICAS",                      value = "1" },
-        { name = "KAFKA_KRAFT_CLUSTER_ID",                             value = "MkU3OEVBNTcwNTJENDM2Qk" },
+        { name = "KAFKA_NODE_ID",                                      value = "1" },
+        { name = "KAFKA_PROCESS_ROLES",                                value = "broker,controller" },
+        { name = "KAFKA_CONTROLLER_QUORUM_VOTERS",                     value = "1@localhost:29093" },
+        { name = "KAFKA_LISTENERS",                                    value = "PLAINTEXT://0.0.0.0:9092,CONTROLLER://localhost:29093" },
+        { name = "KAFKA_ADVERTISED_LISTENERS",                         value = "PLAINTEXT://kafka.esp.local:9092" },
+        { name = "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP",               value = "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT" },
+        { name = "KAFKA_CONTROLLER_LISTENER_NAMES",                    value = "CONTROLLER" },
+        { name = "KAFKA_AUTO_CREATE_TOPICS_ENABLE",                    value = "false" },
+        { name = "KAFKA_DEFAULT_REPLICATION_FACTOR",                   value = "1" },
+        { name = "KAFKA_NUM_PARTITIONS",                               value = "3" },
+        { name = "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR",             value = "1" },
+        { name = "KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR",     value = "1" },
+        { name = "KAFKA_TRANSACTION_STATE_LOG_MIN_ISR",                value = "1" },
+        { name = "KAFKA_MIN_INSYNC_REPLICAS",                          value = "1" },
+        { name = "KAFKA_HEAP_OPTS",                                    value = "-Xmx1g -Xms1g" },
+        { name = "CLUSTER_ID",                                         value = "MkU3OEVBNTcwNTJENDM2Qk" },
       ]
       logConfiguration = {
         logDriver = "awslogs"
