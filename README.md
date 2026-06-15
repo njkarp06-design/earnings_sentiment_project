@@ -238,7 +238,7 @@ earnings_sentiment_project/
 ├── correlation-service/   # yfinance price correlation — Kafka consumer
 ├── bff/                   # Node.js Express REST API + JWT auth
 ├── frontend/              # Next.js 14 App Router UI
-├── infra/                 # Terraform — AWS ECS, MSK, ALB, ECR, Secrets Manager
+├── infra/                 # Terraform — AWS ECS, Kafka (ECS), ALB, ECR, Secrets Manager
 ├── mongo/                 # MongoDB init scripts
 ├── tools/                 # Dev/test utilities (inject_demo_data, inject_fields, etc.)
 ├── presentation/          # Bootcamp presentation script + screenshots
@@ -252,7 +252,7 @@ earnings_sentiment_project/
 The `infra/` directory contains Terraform for a full production deployment:
 
 - **ECS Fargate** for all five application services
-- **Amazon MSK** (managed Kafka)
+- **Self-hosted Kafka on ECS** (KRaft mode, Cloud Map DNS)
 - **MongoDB Atlas** via Secrets Manager
 - **ALBs** for BFF and frontend
 - **ECR** for container images
