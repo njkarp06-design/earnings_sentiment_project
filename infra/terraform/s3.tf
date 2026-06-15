@@ -1,7 +1,8 @@
 # Bucket name includes the account ID to guarantee global uniqueness
 resource "aws_s3_bucket" "transcripts" {
-  bucket = "${var.project_name}-transcripts-${local.account_id}"
-  tags   = { Name = "${var.project_name}-transcripts" }
+  bucket        = "${var.project_name}-transcripts-${local.account_id}"
+  force_destroy = true
+  tags          = { Name = "${var.project_name}-transcripts" }
 }
 
 resource "aws_s3_bucket_versioning" "transcripts" {
