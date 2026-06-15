@@ -88,7 +88,7 @@ resource "aws_ecs_service" "kafka" {
   }
 
   lifecycle {
-    ignore_changes = [task_definition, desired_count]
+    ignore_changes = [desired_count]
   }
 }
 
