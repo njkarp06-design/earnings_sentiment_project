@@ -1,5 +1,6 @@
 # EarningsSentiment
-
+Live Webapp http://esp-frontend-690930583.us-east-1.elb.amazonaws.com/ 
+Demo Webapp 
 **Does how a CEO speaks on an earnings call predict what the stock does next?**
 
 EarningsSentiment is a real-time intelligence platform that answers this question at scale. It ingests earnings call transcripts as they are filed with the SEC, scores the CEO's language using Claude AI, and automatically correlates those scores against 1-day, 3-day, and 7-day post-call price moves — building an ever-growing dataset of whether executive language actually signals anything.
