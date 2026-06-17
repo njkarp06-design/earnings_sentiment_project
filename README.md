@@ -2,7 +2,7 @@
 
 Demo Webapp https://njkarp06-design.github.io/earnings_sentiment_project/
 
-Live Webapp http://esp-frontend-690930583.us-east-1.elb.amazonaws.com/ 
+Live Webapp http://esp-frontend-690930583.us-east-1.elb.amazonaws.com/ (API's currentley have no credits)
 
 **Does how a CEO speaks on an earnings call predict what the stock does next?**
 
