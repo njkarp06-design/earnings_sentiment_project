@@ -48,11 +48,17 @@ def fetch_price_window(ticker: str, call_date: str) -> Optional[Dict[str, Dict]]
     for ts, row in hist.iterrows():
         # ts may be timezone-aware depending on yfinance version
         date_str = ts.date().isoformat() if hasattr(ts, "date") else str(ts)[:10]
+        # yfinance can emit NaN rows for halted/partial sessions. Skip them so
+        # NaNs never reach Mongo and int(NaN) doesn't blow up the whole window.
+        close = row["Close"]
+        if close != close:  # NaN
+            continue
+        vol = row["Volume"]
         rows[date_str] = {
             "open":   round(float(row["Open"]),   4),
             "high":   round(float(row["High"]),   4),
             "low":    round(float(row["Low"]),    4),
-            "close":  round(float(row["Close"]),  4),
-            "volume": int(row["Volume"]),
+            "close":  round(float(close),         4),
+            "volume": int(vol) if vol == vol else 0,
         }
     return rows

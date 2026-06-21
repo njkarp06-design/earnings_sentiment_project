@@ -119,6 +119,11 @@ export async function inspectCall(data, onText, onDone, onError) {
     return;
   }
 
+  if (!response.body) {
+    onError?.('No response stream');
+    return;
+  }
+
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
 
@@ -132,7 +137,7 @@ export async function inspectCall(data, onText, onDone, onError) {
     try {
       const { text, error } = JSON.parse(payload);
       if (error) { onError?.(error); return true; }
-      if (text) onText(text);
+      if (text) onText?.(text);
     } catch { /* skip genuinely malformed lines */ }
     return false;
   };

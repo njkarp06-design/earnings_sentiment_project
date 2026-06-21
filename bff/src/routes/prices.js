@@ -1,7 +1,7 @@
 const router   = require('express').Router();
 const RawPrice = require('../models/RawPrice');
 
-const TICKER_RE = /^[A-Z]{1,10}$/;
+const TICKER_RE = /^[A-Z]{1,10}([.-][A-Z]{1,4})?$/;
 
 // GET /prices/:ticker?days=N
 // Returns OHLCV rows from the raw_prices cache, sorted oldest→newest.

@@ -23,8 +23,8 @@ router.get('/', async (req, res, next) => {
     // Aggregate instead of find so we can deduplicate by (ticker, call_date).
     // A ticker can have two records for the same date when EDGAR and FMP both
     // ingest the same call (FMP runs concurrently with EDGAR in the scheduler).
-    // We keep whichever record has a non-null confidence_score; otherwise the
-    // most recent correlated_at wins.
+    // Winner is decided by the $sort below: prefer the record with a real
+    // company name (EDGAR over FMP), then the most recent correlated_at.
     const rawItems = await PriceReaction.aggregate([
       { $match: query },
       // Rank each record so EDGAR records (real company name) beat FMP records
