@@ -4,6 +4,7 @@ import Link from 'next/link';
 import clsx from 'clsx';
 import MiniSparkline from './MiniSparkline';
 import SearchOverlay from './SearchOverlay';
+import LiveDot from './LiveDot';
 import { usePortfolio } from '@/context/PortfolioContext';
 
 function isLive(callDateStr) {
@@ -72,7 +73,7 @@ function ReturnVal({ value, pending }) {
   );
 }
 
-export default function FeedRow({ item }) {
+export default function FeedRow({ item, index = 0 }) {
   const { watchlist, add, remove, isLoggedIn } = usePortfolio();
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -101,15 +102,16 @@ export default function FeedRow({ item }) {
     <>
       <div
         onClick={() => setOverlayOpen(true)}
+        style={{ animationDelay: `${Math.min(index, 12) * 30}ms` }}
         className={clsx(
           'group flex items-center border-b border-slate-200 last:border-b-0',
-          'border-l-[3px] cursor-pointer transition-colors hover:bg-slate-50',
+          'border-l-[3px] cursor-pointer transition-colors hover:bg-slate-50 animate-slide-up',
           accentLeft(item.confidence_score),
         )}
       >
         {/* Live dot */}
         <div className="w-7 shrink-0 flex items-center justify-center self-stretch">
-          {live && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+          {live && <LiveDot />}
         </div>
 
         {/* Ticker + company name + date */}
