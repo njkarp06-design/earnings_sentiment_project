@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { getFeed, getFeedSince } from '@/lib/api';
 import { usePortfolio } from '@/context/PortfolioContext';
 import FeedRow from '@/components/FeedRow';
+import LiveDot from '@/components/LiveDot';
 import SearchBar from '@/components/SearchBar';
 import SearchOverlay from '@/components/SearchOverlay';
 import PulseBar from '@/components/PulseBar';
@@ -43,10 +44,11 @@ function FeedList({ items }) {
           <span className="text-[10px] text-slate-400 uppercase tracking-widest">Actions</span>
         </div>
       </div>
-      {items.map((item) => (
+      {items.map((item, i) => (
         <FeedRow
           key={item.filing_id ?? `${item.ticker}-${item.call_date}`}
           item={item}
+          index={i}
         />
       ))}
     </div>
@@ -67,8 +69,11 @@ export default function DashboardPage() {
   const pollCountRef   = useRef(0);
 
   useEffect(() => {
+    // Stamp the cursor with the time the request was *sent*, not when the
+    // response lands, so items created mid-flight aren't skipped next poll.
+    const initialReqTime = new Date().toISOString();
     getFeed()
-      .then(data => { setItems(data); lastFetchRef.current = new Date().toISOString(); })
+      .then(data => { setItems(data); lastFetchRef.current = initialReqTime; })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
 
@@ -76,13 +81,14 @@ export default function DashboardPage() {
       setTick(t => t + 1);
       pollCountRef.current += 1;
       const isFull = pollCountRef.current % 5 === 0;
+      const reqTime = new Date().toISOString();
       const fetcher = isFull
         ? getFeed()
         : (lastFetchRef.current ? getFeedSince(lastFetchRef.current) : getFeed());
 
       fetcher
         .then(fresh => {
-          lastFetchRef.current = new Date().toISOString();
+          lastFetchRef.current = reqTime;
           if (isFull) {
             setItems(fresh);
           } else if (fresh.length > 0) {
@@ -207,12 +213,10 @@ export default function DashboardPage() {
                 )}
               >
                 {dot && (
-                  <span className={clsx(
-                    'w-1.5 h-1.5 rounded-full animate-pulse shrink-0',
-                    isActive        ? 'bg-white/80'    :
-                    !isEmpty        ? 'bg-emerald-500'  :
-                                      'bg-slate-300',
-                  )} />
+                  <LiveDot
+                    color={isActive ? 'bg-white/80' : !isEmpty ? 'bg-emerald-500' : 'bg-slate-300'}
+                    ping={!isEmpty}
+                  />
                 )}
                 {label}
                 <span className={clsx(

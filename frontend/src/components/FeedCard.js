@@ -6,6 +6,7 @@ import ScoreBar from './ScoreBar';
 import ReturnBadge from './ReturnBadge';
 import MiniSparkline from './MiniSparkline';
 import SearchOverlay from './SearchOverlay';
+import LiveDot from './LiveDot';
 import { usePortfolio } from '@/context/PortfolioContext';
 
 function fmtDate(str) {
@@ -73,7 +74,7 @@ function TimeLabel({ live, callDate }) {
   if (live) {
     return (
       <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        <LiveDot />
         Live
       </span>
     );

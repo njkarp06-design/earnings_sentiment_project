@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { getPortfolioItems, getSuggestions, getMe, updatePreferences } from '@/lib/api';
 import FeedCard from '@/components/FeedCard';
+import LiveDot from '@/components/LiveDot';
 import SuggestionCard from '@/components/SuggestionCard';
 import SearchOverlay from '@/components/SearchOverlay';
 import { usePortfolio } from '@/context/PortfolioContext';
@@ -185,7 +186,7 @@ export default function PortfolioPage() {
       {!loading && justReported.length > 0 && (
         <section className="mb-10">
           <div className="flex items-center gap-2 mb-4">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <LiveDot />
             <h2 className="text-[10px] font-semibold text-emerald-600 uppercase tracking-widest">
               Just Reported
             </h2>

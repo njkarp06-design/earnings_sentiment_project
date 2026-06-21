@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { getPulse } from '@/lib/api';
+import LiveDot from './LiveDot';
 
 function scoreColor(score) {
   if (score >= 70) return 'text-emerald-600';
@@ -21,7 +22,7 @@ export default function PulseBar() {
     <div className="flex items-stretch border border-slate-200 rounded-xl overflow-x-auto bg-white mb-6 text-xs shadow-sm">
       <div className="px-4 py-3 flex items-center shrink-0 border-r border-slate-200">
         <div className="flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-700 animate-pulse" />
+          <LiveDot color="bg-blue-700" />
           <span className="font-semibold text-blue-700 uppercase tracking-widest text-[10px]">
             Market Pulse
           </span>
