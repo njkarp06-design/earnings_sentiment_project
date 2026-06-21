@@ -135,7 +135,7 @@ On first run the ingestor seeds the full EDGAR company universe (~10k US-listed 
 To populate all pages immediately without waiting for live ingestion:
 
 ```bash
-python inject_demo_data.py
+python tools/inject_demo_data.py
 ```
 
 ---
@@ -236,8 +236,8 @@ earnings_sentiment_project/
 ├── frontend/              # Next.js 14 App Router UI
 ├── infra/                 # Terraform — AWS ECS, MSK, ALB, ECR, Secrets Manager
 ├── mongo/                 # MongoDB init scripts
-├── docker-compose.yml
-└── inject_demo_data.py    # Demo/test data seed script
+├── tools/                 # Seed/inject scripts (e.g. inject_demo_data.py)
+└── docker-compose.yml
 ```
 
 ---

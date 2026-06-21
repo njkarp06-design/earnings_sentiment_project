@@ -6,10 +6,14 @@ Values are derived deterministically from the existing confidence_score so they
 are consistent and plausible — suitable until real Claude re-scoring runs.
 """
 
+import os
 import random
 from pymongo import MongoClient
 
-MONGO_URI = "mongodb://earningssentiment:REDACTED@mongo:27017/earnings_sentiment?authSource=admin"
+MONGO_URI = os.getenv(
+    "MONGO_URI",
+    "mongodb://admin:password@localhost:27017/earnings_sentiment?authSource=admin",
+)
 
 # ── Templates keyed by score band ────────────────────────────────────────────
 

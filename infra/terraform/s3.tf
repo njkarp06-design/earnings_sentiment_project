@@ -36,6 +36,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "transcripts" {
     id     = "archive-and-expire"
     status = "Enabled"
 
+    # Empty filter → the rule applies to every object in the bucket.
+    filter {}
+
     transition {
       days          = 90
       storage_class = "GLACIER"

@@ -179,7 +179,7 @@ services:
       - "3001:3001"
     environment:
       MONGO_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongo:27017/earnings_sentiment?authSource=admin
-      JWT_SECRET: ${JWT_SECRET:-changeme}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set — copy .env.example to .env and set a strong, unique value (openssl rand -base64 32)}
       PORT: 3001
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       FMP_API_KEY: ${FMP_API_KEY:-}

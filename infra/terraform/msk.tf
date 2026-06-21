@@ -12,7 +12,7 @@ resource "aws_msk_configuration" "main" {
     num.partitions=3
     num.replica.fetchers=2
     socket.request.max.bytes=104857600
-    unclean.leader.election.enable=true
+    unclean.leader.election.enable=false
     log.retention.hours=168
   EOT
 }
@@ -54,7 +54,7 @@ resource "aws_msk_cluster" "main" {
     }
   }
 
-  logging {
+  logging_info {
     broker_logs {
       cloudwatch_logs {
         enabled   = true

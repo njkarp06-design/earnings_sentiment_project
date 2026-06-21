@@ -44,7 +44,7 @@ COMPANY_NAME   = "NVIDIA Corporation"
 CALL_DATE      = "2026-05-20"
 SECTOR         = "Technology"
 MODEL          = os.getenv("SCORING_MODEL", "claude-haiku-4-5-20251001")
-MONGO_URI      = os.getenv("MONGO_URI", "mongodb://earningssentiment:REDACTED@localhost:27017/earnings_sentiment?authSource=admin")
+MONGO_URI      = os.getenv("MONGO_URI", "mongodb://admin:password@localhost:27017/earnings_sentiment?authSource=admin")
 
 
 def _compute_returns(ticker: str, call_date: str) -> dict:

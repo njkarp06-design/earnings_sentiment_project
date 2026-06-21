@@ -4,7 +4,7 @@ const PriceReaction = require('../models/PriceReaction');
 const requireAuth   = require('../middleware/auth');
 
 const INGESTOR_URL = process.env.INGESTOR_URL || 'http://ingestor:8001';
-const TICKER_RE    = /^[A-Z]{1,10}$/;
+const TICKER_RE    = /^[A-Z]{1,10}([.-][A-Z]{1,4})?$/;
 
 // GET /companies/:ticker/history
 // All scored+correlated calls for a ticker, newest first.

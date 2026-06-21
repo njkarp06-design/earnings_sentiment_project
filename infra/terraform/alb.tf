@@ -33,6 +33,30 @@ resource "aws_lb_listener" "frontend" {
   port              = 80
   protocol          = "HTTP"
 
+  # Forward when there's no cert; redirect to HTTPS once one is supplied.
+  default_action {
+    type             = local.tls_enabled ? "redirect" : "forward"
+    target_group_arn = local.tls_enabled ? null : aws_lb_target_group.frontend.arn
+
+    dynamic "redirect" {
+      for_each = local.tls_enabled ? [1] : []
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+  }
+}
+
+resource "aws_lb_listener" "frontend_https" {
+  count             = local.tls_enabled ? 1 : 0
+  load_balancer_arn = aws_lb.frontend.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = var.acm_certificate_arn
+
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.frontend.arn
@@ -73,6 +97,30 @@ resource "aws_lb_listener" "bff" {
   load_balancer_arn = aws_lb.bff.arn
   port              = 80
   protocol          = "HTTP"
+
+  # Forward when there's no cert; redirect to HTTPS once one is supplied.
+  default_action {
+    type             = local.tls_enabled ? "redirect" : "forward"
+    target_group_arn = local.tls_enabled ? null : aws_lb_target_group.bff.arn
+
+    dynamic "redirect" {
+      for_each = local.tls_enabled ? [1] : []
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+  }
+}
+
+resource "aws_lb_listener" "bff_https" {
+  count             = local.tls_enabled ? 1 : 0
+  load_balancer_arn = aws_lb.bff.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = var.acm_certificate_arn
 
   default_action {
     type             = "forward"

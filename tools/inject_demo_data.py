@@ -9,11 +9,15 @@ Fills every company to 12 historical earnings calls with fully realistic data:
  - All tagged _mock=True for automatic Claude replacement later
 """
 
+import os
 import random
 from datetime import datetime, timedelta, timezone
 from pymongo import MongoClient, UpdateOne
 
-MONGO_URI = "mongodb://earningssentiment:REDACTED@mongo:27017/earnings_sentiment?authSource=admin"
+MONGO_URI = os.getenv(
+    "MONGO_URI",
+    "mongodb://admin:password@localhost:27017/earnings_sentiment?authSource=admin",
+)
 TARGET = 12   # minimum calls per company after injection
 
 # ── Approximate base stock prices ─────────────────────────────────────────────

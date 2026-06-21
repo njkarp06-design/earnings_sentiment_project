@@ -3,7 +3,7 @@ const User          = require('../models/User');
 const PriceReaction = require('../models/PriceReaction');
 const requireAuth   = require('../middleware/auth');
 
-const TICKER_RE   = /^[A-Z]{1,10}$/;
+const TICKER_RE   = /^[A-Z]{1,10}([.-][A-Z]{1,4})?$/;
 
 // All portfolio routes require a valid JWT.
 router.use(requireAuth);

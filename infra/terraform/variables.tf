@@ -49,6 +49,13 @@ variable "fmp_api_key" {
   sensitive   = true
 }
 
+variable "resend_api_key" {
+  description = "Resend API key for email notifications — leave empty to disable"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # ── Application config ────────────────────────────────────────────────────────
 
 variable "edgar_user_agent" {
@@ -85,4 +92,22 @@ variable "price_fetch_days" {
   description = "Calendar days of price data fetched after each earnings call"
   type        = number
   default     = 12
+}
+
+variable "notification_provider" {
+  description = "Email notification provider for the correlation service (\"resend\" or \"none\")"
+  type        = string
+  default     = "none"
+}
+
+variable "notify_from_email" {
+  description = "From-address for notification emails (must be a Resend-verified sender)"
+  type        = string
+  default     = "onboarding@resend.dev"
+}
+
+variable "acm_certificate_arn" {
+  description = "ACM certificate ARN for HTTPS on the ALBs. Leave empty to serve HTTP only; when set, an HTTPS:443 listener is added and HTTP:80 redirects to it."
+  type        = string
+  default     = ""
 }

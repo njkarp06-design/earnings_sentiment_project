@@ -23,7 +23,7 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Allow the execution role to read the four Secrets Manager secrets
+# Allow the execution role to read the Secrets Manager secrets
 resource "aws_iam_role_policy" "ecs_execution_secrets" {
   name = "read-secrets"
   role = aws_iam_role.ecs_task_execution.id
@@ -39,6 +39,7 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
           aws_secretsmanager_secret.anthropic_api_key.arn,
           aws_secretsmanager_secret.jwt_secret.arn,
           aws_secretsmanager_secret.fmp_api_key.arn,
+          aws_secretsmanager_secret.resend_api_key.arn,
         ]
       }
     ]

@@ -11,10 +11,11 @@ If already present, commits the offset and moves on.
 
 import json
 import logging
+import time
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from kafka import KafkaConsumer, KafkaProducer
+from kafka import KafkaConsumer, KafkaProducer, TopicPartition
 from kafka.errors import KafkaError
 from pymongo import MongoClient
 
@@ -112,6 +113,26 @@ def main() -> None:
         cfg.model, TOPIC_IN, TOPIC_OUT,
     )
 
+    # Bounded exponential backoff for transient failures so a sustained outage
+    # neither spins the loop nor drains the topic. On a transient error we seek
+    # back to the failed message so it is actually retried (not just skipped
+    # until the next restart).
+    consecutive_failures = 0
+
+    def _backoff_and_retry(kafka_msg, reason: str) -> None:
+        nonlocal consecutive_failures
+        consecutive_failures += 1
+        delay = min(60, 2 ** consecutive_failures)
+        logger.warning(
+            "%s — backing off %ds then retrying offset %d (failure #%d)",
+            reason, delay, kafka_msg.offset, consecutive_failures,
+        )
+        time.sleep(delay)
+        consumer.seek(
+            TopicPartition(kafka_msg.topic, kafka_msg.partition),
+            kafka_msg.offset,
+        )
+
     try:
         for kafka_msg in consumer:
             msg = kafka_msg.value
@@ -143,7 +164,7 @@ def main() -> None:
                     consumer.commit()
                     continue
                 logger.error("Scoring failed for %s [%s]: %s", ticker, filing_id, exc)
-                # Don't commit — will retry on service restart
+                _backoff_and_retry(kafka_msg, "Transient scoring failure")
                 continue
 
             scored_at = datetime.now(timezone.utc).isoformat()
@@ -176,7 +197,7 @@ def main() -> None:
                 )
             except KafkaError as exc:
                 logger.error("Kafka publish failed for %s: %s", filing_id, exc)
-                # Don't commit — retry on restart
+                _backoff_and_retry(kafka_msg, "Transient Kafka publish failure")
                 continue
 
             # ── Persist to MongoDB ────────────────────────────────────────────
@@ -192,6 +213,7 @@ def main() -> None:
                 # Score is safely in Kafka — commit anyway, log the write failure
 
             consumer.commit()
+            consecutive_failures = 0  # progress made — reset backoff
 
     except (KeyboardInterrupt, SystemExit):
         logger.info("Shutting down scoring service")
