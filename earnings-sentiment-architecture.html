@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Earnings Sentiment Platform — Architecture</title>
+<style>
+  :root{
+    --bg:#f6f6f7; --card:#ffffff; --ink:#1c1d21; --muted:#6b6e76;
+    --line:#e5e6e9; --teal:#1f8a70; --teal-bg:#eaf6f1; --teal-bd:#bfe6d8;
+    --purple:#6c5ce7; --purple-bg:#efeaff;
+    --amber:#b8860b; --amber-bg:#fbf3df; --amber-bd:#ecd9a6;
+    --blue:#2f6fed; --blue-bg:#eaf1fe; --blue-bd:#c5d8fb;
+    --code-bg:#f0f1f3; --red:#c0392b; --green:#1f8a70;
+  }
+  *{box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact}
+  @page{margin:14mm 12mm}
+  @media print{
+    body{background:#fff; font-size:13px}
+    .wrap{padding:0; max-width:none}
+    h2{break-after:avoid; margin-top:30px}
+    h3{break-after:avoid}
+    /* Only keep SMALL atomic blocks from splitting. Tall blocks (cards,
+       tables, code) are allowed to flow across pages so no gaps appear. */
+    .ep,.coll,.step,.layer,.mini,.topic{break-inside:avoid}
+    a{color:var(--ink)}
+  }
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55; font-size:15px;
+  }
+  .wrap{max-width:900px; margin:0 auto; padding:48px 28px 90px}
+
+  /* ── Headings ── */
+  h1{font-size:32px; font-weight:700; margin:0 0 6px; letter-spacing:-.01em}
+  .sub{color:var(--muted); margin:0; font-size:16px}
+  .updated{color:#9a9ca2; font-size:12px; margin:4px 0 0; text-transform:uppercase; letter-spacing:.04em}
+  .lede{margin:22px 0 0; font-size:16px}
+  h2{font-size:21px; font-weight:700; margin:54px 0 4px; padding-bottom:9px; border-bottom:1px solid var(--line)}
+  h2 .n{color:var(--teal); font-variant-numeric:tabular-nums; margin-right:8px}
+  h2 .src{float:right; font-size:12px; font-weight:500; color:#9a9ca2; font-family:ui-monospace,monospace; padding-top:6px}
+  h3{font-size:15.5px; font-weight:700; margin:24px 0 8px}
+  .intro{color:var(--muted); margin:10px 0 4px; font-size:15px}
+
+  /* ── Inline ── */
+  code{font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.85em;
+    background:var(--code-bg); padding:1px 5px; border-radius:4px; white-space:nowrap}
+  b{font-weight:700}
+  .muted{color:var(--muted)}
+  .small{font-size:13px}
+  a{color:var(--blue); text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* ── TOC ── */
+  .toc{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin:28px 0 0;
+    columns:2; column-gap:36px}
+  .toc a{display:block; padding:4px 0; color:var(--ink); font-size:14px; break-inside:avoid}
+  .toc a span{color:var(--teal); font-variant-numeric:tabular-nums; display:inline-block; width:22px}
+  @media(max-width:600px){.toc{columns:1}}
+
+  /* ── Cards ── */
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:14px 0}
+  .card.teal{border-color:var(--teal-bd); background:var(--teal-bg)}
+  .card.blue{border-color:var(--blue-bd); background:var(--blue-bg)}
+  .card.amber{border-color:var(--amber-bd); background:var(--amber-bg)}
+  .card h3{margin-top:0}
+  .card p:last-child{margin-bottom:0}
+  .card p:first-of-type{margin-top:0}
+
+  /* ── Layer stack (system overview) ── */
+  .stack{margin:20px 0}
+  .layer{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:0}
+  .layer .ltag{font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:8px}
+  .layer.ext{background:#fafafa}
+  .layer.ingest{background:var(--teal-bg); border-color:var(--teal-bd)}
+  .layer.kafka{background:#faf9ff; border-color:#e2dcf7}
+  .layer.store{background:var(--amber-bg); border-color:var(--amber-bd)}
+  .layer.serve{background:var(--teal-bg); border-color:var(--teal-bd)}
+  .layer.client{background:var(--blue-bg); border-color:var(--blue-bd)}
+  .layer .title{font-weight:700; font-size:15px}
+  .layer .desc{color:var(--muted); font-size:13px; margin-top:3px}
+  .down{text-align:center; color:#b9bbc0; font-size:18px; line-height:1; margin:7px 0}
+  .grid6{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:4px}
+  @media(max-width:600px){.grid6{grid-template-columns:repeat(2,1fr)}}
+  .mini{background:#fff; border:1px solid var(--line); border-radius:9px; padding:9px 11px}
+  .mini b{font-size:13px}
+  .mini span{display:block; color:var(--muted); font-size:11.5px; margin-top:2px; line-height:1.4}
+  .topicrow{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:8px 0}
+  @media(max-width:600px){.topicrow{grid-template-columns:1fr}}
+  .topic{background:#fff; border:1px solid #e2dcf7; border-radius:9px; padding:10px 12px}
+  .topic b{font-family:ui-monospace,monospace; font-size:13px; color:#5a48c7}
+  .topic span{display:block; color:var(--muted); font-size:11.5px; margin-top:3px}
+
+  /* ── Pipeline steps ── */
+  .step{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 20px; margin:0; display:flex; gap:14px}
+  .step .num{flex:0 0 auto; width:26px; height:26px; border-radius:50%; background:var(--teal); color:#fff;
+    font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; margin-top:1px}
+  .step .body{flex:1}
+  .step .body h3{margin:2px 0 6px; font-size:15px}
+  .step .body p{margin:0; font-size:14px}
+
+  /* ── Tables ── */
+  table{width:100%; border-collapse:collapse; margin:14px 0; font-size:14px}
+  th,td{text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top}
+  th{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:700}
+  tr:last-child td{border-bottom:none}
+  td b{font-weight:700}
+
+  /* ── Endpoint / collection grid ── */
+  .cols2{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:14px 0}
+  .cols3{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:14px 0}
+  @media(max-width:720px){.cols2,.cols3{grid-template-columns:1fr}}
+  .ep{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:13px 15px}
+  .ep .path{font-family:ui-monospace,monospace; font-size:13px; font-weight:700; margin:6px 0 4px; word-break:break-word}
+  .ep p{margin:6px 0 0; font-size:12.5px; color:#41434a; line-height:1.5}
+  .m{display:inline-block; font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:5px; letter-spacing:.03em; font-family:ui-monospace,monospace}
+  .m.get{background:#e6f4ee; color:#1f8a70}
+  .m.post{background:#fbf0db; color:#b8860b}
+  .m.patch{background:#efeaff; color:#6c5ce7}
+  .m.del{background:#fdeaea; color:#c0392b}
+  .auth{display:inline-block; font-size:10px; font-weight:700; padding:1px 7px; border-radius:20px; margin-left:6px; text-transform:uppercase; letter-spacing:.03em}
+  .auth.pub{background:#eef0f2; color:#6b6e76}
+  .auth.req{background:var(--teal-bg); color:var(--teal)}
+  .auth.opt{background:var(--blue-bg); color:var(--blue)}
+  .coll{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px}
+  .coll h3{margin:0 0 6px; font-family:ui-monospace,monospace; font-size:13.5px; color:var(--teal)}
+  .coll p{margin:0; font-size:12.5px; color:#41434a; line-height:1.5}
+
+  /* ── Pills / flow / code ── */
+  .pill{display:inline-block; font-size:10.5px; font-weight:700; padding:1px 8px; border-radius:20px; vertical-align:middle}
+  .pill.priv{background:#efeaff; color:#5a48c7}
+  .pill.pub2{background:#e3f0ff; color:#2563d6}
+  .flow{font-family:"SF Mono",ui-monospace,monospace; font-size:13px; background:var(--card);
+    border:1px solid var(--line); border-radius:10px; padding:16px 18px; overflow-x:auto; line-height:1.75; white-space:pre}
+  pre{font-family:"SF Mono",ui-monospace,monospace; font-size:12.5px; background:#1c1d21; color:#e8e8ea;
+    border-radius:10px; padding:18px 20px; overflow-x:auto; line-height:1.65; margin:14px 0}
+  pre .c{color:#7f93a8}
+  pre .k{color:#9ecbff}
+  .fix{border-left:3px solid var(--red); background:#fdf5f4; padding:12px 16px; margin:14px 0; border-radius:0 8px 8px 0}
+  .fix p{margin:0; font-size:13.5px}
+  ul{margin:8px 0; padding-left:20px}
+  li{margin:5px 0; font-size:14px}
+  .cost{font-variant-numeric:tabular-nums}
+  hr{border:none; border-top:1px solid var(--line); margin:0}
+  .backtop{font-size:11px; color:#9a9ca2; float:right; margin-top:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ════════ HERO ════════ -->
+  <h1>Earnings Sentiment Platform</h1>
+  <p class="sub">Architecture reference — current codebase, all phases complete</p>
+  <p class="updated">Updated June 2026</p>
+  <p class="lede">
+    Ingests public earnings-call transcripts from SEC EDGAR, scores CEO language confidence (0–100) using Claude,
+    correlates those scores against post-call stock price returns, and surfaces everything in an interactive
+    dashboard. <b>The central idea: how a CEO sounds on an earnings call often predicts short-term price movement.</b>
+  </p>
+
+  <!-- ════════ TOC ════════ -->
+  <nav class="toc">
+    <a href="#overview"><span>1</span> System overview</a>
+    <a href="#stack"><span>2</span> Tech stack at a glance</a>
+    <a href="#pipeline"><span>3</span> Data pipeline, end to end</a>
+    <a href="#services"><span>4</span> Services in detail</a>
+    <a href="#data"><span>5</span> MongoDB data model</a>
+    <a href="#api"><span>6</span> BFF API endpoints</a>
+    <a href="#pages"><span>7</span> Frontend pages</a>
+    <a href="#decisions"><span>8</span> Key design decisions</a>
+    <a href="#local"><span>9</span> Local infrastructure</a>
+    <a href="#aws"><span>10</span> AWS deployment</a>
+    <a href="#env"><span>11</span> Environment variables</a>
+  </nav>
+
+  <!-- ════════ 1 · SYSTEM OVERVIEW ════════ -->
+  <h2 id="overview"><span class="n">1</span>System overview</h2>
+  <p class="intro">Six layers take raw data from external sources to the user's browser. Each box below is either a running service or an external dependency.</p>
+
+  <div class="stack">
+    <div class="layer ext">
+      <span class="ltag">External data sources</span>
+      <div class="grid6">
+        <div class="mini"><b>SEC EDGAR</b><span>8-K filings · Atom RSS feed</span></div>
+        <div class="mini"><b>FMP API</b><span>Transcript fallback · earnings calendar</span></div>
+        <div class="mini"><b>Alpha Vantage</b><span>Transcript fallback · 8 quarters · 25 req/day · on-demand</span></div>
+        <div class="mini"><b>yfinance</b><span>Post-call OHLCV price data</span></div>
+        <div class="mini"><b>Claude API</b><span>Configurable model (scoring) · Sonnet (inspect)</span></div>
+        <div class="mini"><b>Resend API</b><span>Portfolio email notifications</span></div>
+      </div>
+    </div>
+    <div class="down">↓</div>
+    <div class="layer ingest">
+      <span class="ltag">Ingest</span>
+      <div class="title">Python Ingestor · port 8001</div>
+      <div class="desc">APScheduler cron · 3-pass strategy (EDGAR → FMP → Alpha Vantage) · 8-K RSS Atom poller · Flask HTTP trigger + rebackfill API · yfinance price fetch · price_refresh job · S3 archive · dedup tracker</div>
+    </div>
+    <div class="down">↓</div>
+    <div class="layer kafka">
+      <span class="ltag">Streaming pipeline — Kafka · 3 topics · 3 partitions each</span>
+      <p class="small muted" style="margin:0 0 4px">① Ingestor publishes two topics simultaneously</p>
+      <div class="topicrow">
+        <div class="topic"><b>raw-transcripts</b><span>ticker · call_date · filing_id · raw_text · source</span></div>
+        <div class="topic"><b>raw-prices</b><span>ticker · call_date · OHLCV dict keyed by date</span></div>
+      </div>
+      <p class="small muted" style="margin:10px 0 4px">② raw-transcripts flows through the Scoring Service and is published back as scored-transcripts</p>
+      <div class="topic" style="border-color:var(--teal-bd); background:var(--teal-bg)">
+        <span style="color:var(--ink)"><code>raw-transcripts</code> → <b style="color:var(--teal)">Scoring Service</b> → <code>scored-transcripts</code><br>
+        <span class="muted">checks scores collection · calls Claude · returns confidence_score · key_phrases · guidance_flag · trade_brief · qa_defensiveness</span></span>
+      </div>
+      <p class="small muted" style="margin:10px 0 4px">③ Correlation Service consumes both scored-transcripts and raw-prices</p>
+      <div class="topic" style="border-color:var(--teal-bd); background:var(--teal-bg)">
+        <span style="color:var(--ink)"><code>scored-transcripts</code> + <code>raw-prices</code> → <b style="color:var(--teal)">Correlation Service</b><br>
+        <span class="muted">yfinance · 1d/3d/7d returns · price_series · trend signal · sector denorm · raw_prices cache · 4-hour backfill daemon · Resend emails</span></span>
+      </div>
+    </div>
+    <div class="down">↓</div>
+    <div class="layer store">
+      <span class="ltag">Store</span>
+      <div class="title">MongoDB · 8 collections</div>
+      <div class="desc">companies · transcripts · scores · price_reactions · raw_prices · users · _ingested_filings · _sent_notifications</div>
+    </div>
+    <div class="down">↓</div>
+    <div class="layer serve">
+      <span class="ltag">Serve</span>
+      <div class="title">Node.js BFF — Express REST API · port 3001</div>
+      <div class="desc">JWT auth · 12 route groups · /inspect SSE streaming · rate-limited Claude Sonnet deep analysis · FMP calendar proxy · on-demand ingestor trigger · sector analytics</div>
+    </div>
+    <div class="down">↓</div>
+    <div class="layer client">
+      <span class="ltag">Client</span>
+      <div class="title">Next.js 14 Frontend — App Router · port 3000</div>
+      <div class="desc">Dashboard · Company · Portfolio · Leaderboard · Sectors (inline detail) · Calendar · Login/Register · InspectModal (live SSE) · SearchOverlay</div>
+    </div>
+  </div>
+
+  <!-- ════════ 2 · TECH STACK ════════ -->
+  <h2 id="stack"><span class="n">2</span>Tech stack at a glance</h2>
+  <p class="intro">A one-line map of every layer before the deep dives. Each row is expanded later in the document.</p>
+  <table>
+    <thead><tr><th>Layer</th><th>Technology</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td><b>Ingestion</b></td><td>Python · requests · APScheduler · Flask</td><td>EDGAR + FMP + Alpha Vantage (3-pass) + RSS Atom poller + HTTP trigger API (port 8001) + S3</td></tr>
+      <tr><td><b>Stream</b></td><td>Kafka — Confluent 7.5 local; Amazon MSK on AWS</td><td>3 topics · 3 partitions each · auto-create disabled</td></tr>
+      <tr><td><b>Scoring</b></td><td>Claude — model via <code>SCORING_MODEL</code></td><td>Recommended <code>claude-haiku-4-5-20251001</code> · ephemeral prompt caching · idempotency check · 150k char cap</td></tr>
+      <tr><td><b>Deep analysis</b></td><td>Claude Sonnet — <code>claude-sonnet-4-6</code></td><td>On-demand SSE streaming from BFF <code>/inspect</code></td></tr>
+      <tr><td><b>Price data</b></td><td>yfinance</td><td>Post-call OHLCV · 12-day window · 4-hourly backfill · 2-hourly price_refresh publish</td></tr>
+      <tr><td><b>Earnings calendar</b></td><td>Financial Modeling Prep (FMP)</td><td>Also the transcript fallback source (Pass 2)</td></tr>
+      <tr><td><b>Transcript fallback</b></td><td>Alpha Vantage</td><td>Pass 3 — on-demand only (25 req/day free tier); last 8 quarters per ticker</td></tr>
+      <tr><td><b>Email</b></td><td>Resend API</td><td>Opt-in watchlist alerts; <code>NOTIFICATION_PROVIDER=resend</code></td></tr>
+      <tr><td><b>Storage</b></td><td>MongoDB 7</td><td>8 collections · Mongoose ODM · Atlas in production</td></tr>
+      <tr><td><b>API</b></td><td>Node.js 20 · Express 4</td><td>JWT auth · 12 route groups · EDGAR-preferred dedup across all aggregations</td></tr>
+      <tr><td><b>Frontend</b></td><td>Next.js 14 (App Router) · React 18 · Tailwind · Recharts</td><td>Light theme · 8 pages · PortfolioContext · PredictabilityScatter · PostEarningsProfile</td></tr>
+      <tr><td><b>Local infra</b></td><td>Docker Compose</td><td>10 containers incl. kafka-setup one-shot + kafka-ui</td></tr>
+      <tr><td><b>Cloud</b></td><td>AWS — ECS Fargate · MSK · ECR · 2 × ALB · S3 · Secrets Manager · CloudWatch</td><td>Terraform IaC · GitHub Actions CI/CD (manual trigger)</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ════════ 3 · DATA PIPELINE ════════ -->
+  <h2 id="pipeline"><span class="n">3</span>Data pipeline — one transcript, end to end</h2>
+  <p class="intro">Every step a single earnings filing goes through, from detection to appearing on the dashboard. This is the narrative spine of the whole system.</p>
+
+  <div class="stack">
+    <div class="step"><div class="num">1</div><div class="body">
+      <h3>Detection</h3>
+      <p>The SEC 8-K RSS Atom feed fires for a new filing, or the APScheduler per-ticker cron scan finds an unprocessed 8-K. The ingestor checks <code>_ingested_filings</code> — if this <code>filing_id</code> was already processed, it stops here. An on-demand <code>POST /trigger/&lt;TICKER&gt;</code> call can also start the flow immediately for a single ticker.</p>
+    </div></div>
+    <div class="down">↓</div>
+    <div class="step"><div class="num">2</div><div class="body">
+      <h3>Fetch transcript + prices — 3-pass strategy</h3>
+      <p><b>Pass 1 (EDGAR):</b> downloads the 8-K exhibit and detects transcript text via signal phrases (operator calls, Q&amp;A language). <b>Pass 2 (FMP):</b> always runs after EDGAR for structured transcript archives going back years; cross-source dedup via <code>_ingested_filings</code> and a <code>price_reactions</code> call_date check prevents double-publishing the same call. <b>Pass 3 (Alpha Vantage):</b> on-demand only (25 req/day free tier) — fetches the last 8 quarters for single-ticker trigger requests. Simultaneously, yfinance fetches OHLCV data (open, high, low, close, volume — the daily price bars) around the call date. Best-effort write to S3 (AWS only).</p>
+    </div></div>
+    <div class="down">↓</div>
+    <div class="step"><div class="num">3</div><div class="body">
+      <h3>Publish to Kafka — two topics</h3>
+      <p>Transcript text → <code>raw-transcripts</code>. OHLCV price dict → <code>raw-prices</code>. Both published simultaneously. <code>filing_id</code> is written to <code>_ingested_filings</code> to prevent any future re-publish. A separate <code>price_refresh</code> job (every 2h) re-publishes OHLCV for any filing that still has null return fields, so the correlation service can fill them in as each trading window closes.</p>
+    </div></div>
+    <div class="down">↓</div>
+    <div class="step"><div class="num">4</div><div class="body">
+      <h3>Scoring service: raw-transcripts → Claude → scored-transcripts</h3>
+      <p>Consumes <code>raw-transcripts</code>. Checks the <code>scores</code> collection first — skips records already scored with all fields present (records missing <code>trade_brief</code> or flagged <code>_mock</code> are re-scored). Calls Claude with a cached system prompt (<code>cache_control: ephemeral</code> cuts API cost). Model is set by <code>SCORING_MODEL</code>. Transcript is hard-capped at <code>MAX_TRANSCRIPT_CHARS</code> (default 150k). Returns five fields: <code>confidence_score</code> (0–100), three <code>key_phrases</code>, <code>guidance_flag</code>, <code>trade_brief</code>, <code>qa_defensiveness</code>. If Anthropic credits are depleted it commits and skips cleanly rather than blocking. Writes all five fields to <code>scores</code>, then publishes the enriched message to <code>scored-transcripts</code>.</p>
+    </div></div>
+    <div class="down">↓</div>
+    <div class="step"><div class="num">5</div><div class="body">
+      <h3>Correlation service: scored-transcripts + raw-prices</h3>
+      <p>The main thread consumes <code>scored-transcripts</code>, fetches 12+ days of post-call OHLCV from yfinance, and computes percentage returns at day 1, 3, and 7 from the baseline close (first trading day on/after the call). Builds an 8-point <code>price_series</code> array (day 0–7) for drift charts. Resolves sector via a 3-step cascade (companies collection → static S&amp;P 100 map → yfinance.info). Computes a trend signal vs the ticker's previous call. Upserts to <code>price_reactions</code> keyed on <code>filing_id</code> (falls back to <code>(ticker, call_date)</code> for FMP records). Pending windows are left null for the backfill daemon. A separate thread caches <code>raw-prices</code> into <code>raw_prices</code> for the BFF chart endpoint.</p>
+    </div></div>
+    <div class="down">↓</div>
+    <div class="step"><div class="num">6</div><div class="body">
+      <h3>Email notifications</h3>
+      <p>After writing <code>price_reactions</code>, the notification system queries <code>users</code> for anyone watching this ticker with <code>notifications_enabled: true</code>, and sends an HTML email via Resend (only when <code>NOTIFICATION_PROVIDER=resend</code>). The <code>_sent_notifications</code> collection has a unique index on <code>(user_id, ticker, call_date)</code> — guaranteeing at-most-once delivery even across restarts.</p>
+    </div></div>
+    <div class="down">↓</div>
+    <div class="step"><div class="num">7</div><div class="body">
+      <h3>BFF serves the call</h3>
+      <p><code>GET /feed</code> queries <code>price_reactions</code> within a 12-month window, deduplicated by <code>(ticker, call_date)</code> with EDGAR records preferred over FMP, sorted by <code>call_date DESC</code>. The new call appears as a feed card. If returns are still null (pending), a pending badge shows and the frontend polls every 60s.</p>
+    </div></div>
+    <div class="down">↓</div>
+    <div class="step"><div class="num">8</div><div class="body">
+      <h3>Deep analysis on demand (streaming)</h3>
+      <p>The user clicks a feed card → InspectModal opens → the frontend POSTs to <code>/inspect</code> → the BFF opens a Server-Sent Events (SSE) connection to Claude Sonnet and streams a five-section deep analysis to the browser in real time: <i>What Happened, Key Signals, What Drove the Price, Red Flags &amp; Green Flags, Bottom Line.</i></p>
+    </div></div>
+  </div>
+
+  <!-- ════════ 4 · SERVICES ════════ -->
+  <h2 id="services"><span class="n">4</span>Services in detail</h2>
+
+  <div class="card">
+    <h3>Python Ingestor</h3>
+    <p><b>Three-pass transcript strategy</b> — Pass 1: the EDGAR client downloads 8-K exhibits and detects transcripts via signal phrases; respects SEC fair-use limits (≤10 req/s, 0.12s delay). Pass 2: FMP structured transcript archives always run after EDGAR — cross-source dedup prevents re-publishing the same call. Pass 3: Alpha Vantage (25 req/day free tier) only during on-demand single-ticker triggers, to fill recent quarters.</p>
+    <p><b>RSS Atom poller</b> — polls the SEC 8-K Atom feed every <code>RSS_POLL_INTERVAL_MINUTES</code> (default 10 min). Catches <i>any</i> public company that files, even those not in <code>TICKERS</code>. Triggers a background historical backfill per newly discovered ticker. This is the primary real-time coverage mechanism; the per-ticker scan is a reliability backstop.</p>
+    <p><b>Flask HTTP API (port 8001)</b> — four endpoints. <code>POST /trigger/&lt;TICKER&gt;</code> starts an immediate on-demand scan (EDGAR 90-day + full FMP archive + Alpha Vantage 8 quarters + async historical backfill) — called by the BFF's ingest endpoint. <code>POST /rebackfill/&lt;TICKER&gt;</code> clears all processed flags for one ticker and re-ingests it. <code>POST /rebackfill-all</code> does the same for every tracked ticker. <code>GET /health</code> is the liveness probe.</p>
+    <p><b>Scheduled jobs (APScheduler)</b> — <code>periodic_ingest</code>: every <code>SCHEDULE_INTERVAL_HOURS</code> (default 2h), runs Pass 1+2 for all tickers (static + user watchlists + recently active). <code>price_refresh</code>: every 2h, re-publishes OHLCV for any filing still missing returns.</p>
+    <p><b>Watchlist expansion</b> — each scheduled run reads all users' watchlists from MongoDB and merges those tickers into the scan set, so newly bookmarked companies are covered automatically.</p>
+    <p><b>S3 archival</b> — best-effort transcript backup to S3 when running on AWS. No-op locally.</p>
+  </div>
+
+  <div class="card">
+    <h3>Scoring Service</h3>
+    <p><b>Claude scoring prompt</b> — uses a cached system prompt (<code>cache_control: ephemeral</code>) so it's billed once per cache window. Returns a structured JSON object with five fields:</p>
+    <ul>
+      <li><code>confidence_score</code> — integer 0–100. Five-band rubric: 90–100 exceptionally confident · 70–89 confident · 50–69 neutral · 30–49 cautious · 0–29 very uncertain.</li>
+      <li><code>key_phrases</code> — three verbatim/near-verbatim phrases (≤12 words each) that most influenced the score.</li>
+      <li><code>guidance_flag</code> — direction of forward guidance: <code>raised</code> · <code>maintained</code> · <code>lowered</code> · <code>withdrawn</code> · <code>null</code>.</li>
+      <li><code>trade_brief</code> — two plain-English sentences for a short-term trader: what the tone signals, and the single most important forward-looking statement.</li>
+      <li><code>qa_defensiveness</code> — integer 0–10: how much more evasive management was in Q&amp;A vs prepared remarks. 0 = equally confident throughout; 10 = stark contrast.</li>
+    </ul>
+    <p><code>max_tokens</code> is 512 to fit all five fields. <b>Idempotency</b> (the property that re-running a step is safe — it never creates duplicates): before calling Claude it checks <code>scores</code> and skips records already scored with <code>trade_brief</code> present; records predating the extended prompt (no <code>trade_brief</code>) or flagged <code>_mock</code> are re-scored in place. <b>Error handling:</b> malformed responses → log and skip permanently; credit depletion → commit and skip cleanly (re-score later via <code>/rebackfill-all</code>); transient/network errors → don't commit, retry on restart. <b>Output:</b> writes all five fields to <code>scores</code> (unique index <code>filing_id</code>, stores <code>model_used</code> + <code>scored_at</code>) <i>and</i> publishes the enriched message to <code>scored-transcripts</code>.</p>
+  </div>
+
+  <div class="card">
+    <h3>Correlation Service <span class="muted small">— three concurrent threads in one container</span></h3>
+    <ul>
+      <li><b>Main thread</b> — consumes <code>scored-transcripts</code>, fetches yfinance, computes 1d/3d/7d returns, builds <code>price_series</code>, resolves sector via the 3-step cascade, computes trend, passes through <code>guidance_flag</code> / <code>trade_brief</code> / <code>qa_defensiveness</code> from the Kafka message, writes the full record to <code>price_reactions</code> (falls back to <code>(ticker, call_date)</code> upsert key when <code>filing_id</code> is absent), and fires notifications. Skips records already in <code>price_reactions</code> with <code>trade_brief</code> present; re-correlates those missing it or flagged <code>_mock</code>.</li>
+      <li><b>Cache thread</b> — consumes <code>raw-prices</code>, upserts rows into <code>raw_prices</code> for BFF chart queries.</li>
+      <li><b>Backfill daemon</b> — every 4 hours, finds <code>price_reactions</code> with any null returns or null <code>price_series</code> and re-fetches yfinance to fill them in (records <code>backfilled_at</code>); also backfills missing <code>sector</code> values.</li>
+    </ul>
+    <p><b>Trend signal</b> — compares the current call's score to the same ticker's most recent previous call: "up" (≥+5), "down" (≤−5), or "neutral". <b>price_series</b> — a per-day percentage-change array on each document, aggregated by the BFF sector endpoints into mean ± std-dev drift paths.</p>
+  </div>
+
+  <div class="card">
+    <h3>Node.js BFF</h3>
+    <p><b><code>/inspect</code> endpoint</b> — accepts a POST with call metadata, opens an SSE connection, and proxies Claude Sonnet's streaming response back to the browser as JSON text chunks. Rate-limited to 10 requests/hour per user. Uses <code>INSPECT_MODEL</code> (default <code>claude-sonnet-4-6</code>).</p>
+    <p><b><code>/companies/:ticker/ingest</code></b> — auth-required POST that forwards to the ingestor's <code>/trigger/&lt;TICKER&gt;</code> API (<code>INGESTOR_URL</code>, default <code>http://ingestor:8001</code>). Lets the frontend trigger an immediate scan for any company a user just bookmarked.</p>
+    <p><b><code>/companies/rebackfill</code></b> — auth-required POST that forwards to <code>/rebackfill-all</code>. The primary way to backfill <code>guidance_flag</code>, <code>trade_brief</code>, and <code>qa_defensiveness</code> onto older records after an Anthropic credit top-up.</p>
+    <p><b>Sector analytics</b> — <code>GET /sectors</code> returns per-sector averages; <code>GET /sectors/:sector</code> returns a drift path (mean ± std per day across all company <code>price_series</code> in that sector) plus per-company rankings.</p>
+    <p><b>EDGAR-preferred deduplication</b> — all aggregations (feed, portfolio, leaderboard, search) dedup by <code>(ticker, call_date)</code>, preferring EDGAR over FMP so real company names beat ticker-as-name FMP entries. <b>price_reactions as the read model</b> — almost every BFF query reads from this single denormalised collection (everything is pre-joined into one ready-made document, so reads need no lookups across other collections); no joins at request time.</p>
+  </div>
+
+  <!-- ════════ 5 · DATA MODEL ════════ -->
+  <h2 id="data"><span class="n">5</span>MongoDB data model</h2>
+  <p class="intro"><code>price_reactions</code> is the central read model — one denormalised document per filing containing the score, key phrases, guidance flag, trade brief, Q&amp;A defensiveness, returns, trend, <code>price_series</code>, and sector. The BFF reads almost exclusively from it, with no joins. Six collections are created by <code>mongo/init/01_init.js</code> on first startup; the two internal collections are created on first write.</p>
+  <div class="cols2">
+    <div class="coll"><h3>price_reactions</h3><p>Primary BFF read source. One doc per filing: confidence_score, key_phrases, guidance_flag, trade_brief, qa_defensiveness, 1d/3d/7d returns, trend, price_series (per-day pct array), call_date_close, sector, company_name, model_used, scored_at, correlated_at, backfilled_at. Written by correlation-service. Unique index: filing_id.</p></div>
+    <div class="coll"><h3>companies</h3><p>Ticker → name → sector → exchange → CIK. Seeded from EDGAR's ~10k US-listed universe at ingestor startup. This defines what is searchable — not yfinance. International stocks, ETFs, and crypto are outside this universe.</p></div>
+    <div class="coll"><h3>scores</h3><p>Raw scoring output per filing_id (unique). Written by scoring-service. Stores confidence_score, key_phrases, guidance_flag, trade_brief, qa_defensiveness, model_used, scored_at. Used for the idempotency check before calling Claude — not queried by the BFF directly.</p></div>
+    <div class="coll"><h3>raw_prices</h3><p>OHLCV cache (ticker + date unique index). Written by correlation-service's cache thread consuming raw-prices. Read only by the BFF <code>/prices/:ticker</code> chart endpoint.</p></div>
+    <div class="coll"><h3>users</h3><p>Email, bcrypt password, watchlist array, notifications_enabled, notifications_email. Read by ingestor (ticker expansion), correlation-service (who to email), and BFF auth/portfolio routes.</p></div>
+    <div class="coll"><h3>transcripts</h3><p>Optional raw transcript storage. The main pipeline passes text through Kafka — this collection is not in the critical path.</p></div>
+    <div class="coll"><h3>_ingested_filings <span class="muted">· internal</span></h3><p>Created on first write. Unique index on filing_id. The ingestor writes here before publishing to Kafka — prevents re-publishing across scheduled runs and on-demand triggers. Also used for cross-source (EDGAR/FMP) dedup by call_date.</p></div>
+    <div class="coll"><h3>_sent_notifications <span class="muted">· internal</span></h3><p>Created on first write. Unique compound index on (user_id, ticker, call_date). Prevents duplicate email sends on correlation-service restart or backfill re-runs.</p></div>
+  </div>
+
+  <!-- ════════ 6 · API ════════ -->
+  <h2 id="api"><span class="n">6</span>BFF API endpoints</h2>
+  <p class="intro">All served by the Node.js Express BFF on port 3001. <span class="auth pub">Public</span> needs no auth · <span class="auth req">Auth</span> needs a JWT Bearer token · <span class="auth opt">Optional</span> returns richer data when authenticated.</p>
+
+  <h3>Reads — feed &amp; companies</h3>
+  <div class="cols2">
+    <div class="ep"><span class="m get">GET</span><span class="auth pub">Public</span><div class="path">/feed</div><p>Recent correlated calls within 12 months, newest-first. Dedup by (ticker, call_date) — EDGAR preferred. <code>?since=</code> filter. Includes <code>pending: true</code> for calls &lt;7 days old still with null returns. Returns per-ticker historical stats (hist_avg_7d, hist_win_rate, hist_call_count). Max 50.</p></div>
+    <div class="ep"><span class="m get">GET</span><span class="auth pub">Public</span><div class="path">/search?q=</div><p>Two-phase: (1) queries <code>companies</code> (ticker prefix / name substring) across the full ~10k EDGAR universe, (2) fetches the latest price_reaction per match. <code>has_data: true</code> means a scored + correlated call exists. Data-bearing results first; exact ticker floated to top.</p></div>
+    <div class="ep"><span class="m get">GET</span><span class="auth pub">Public</span><div class="path">/companies/:ticker/history</div><p>All calls for a ticker, newest-first, deduplicated by call_date (EDGAR preferred).</p></div>
+    <div class="ep"><span class="m get">GET</span><span class="auth pub">Public</span><div class="path">/companies/:ticker/latest</div><p>Most recent call for a ticker.</p></div>
+    <div class="ep"><span class="m get">GET</span><span class="auth pub">Public</span><div class="path">/companies/:ticker</div><p>Company metadata: name, sector, exchange, CIK.</p></div>
+    <div class="ep"><span class="m get">GET</span><span class="auth pub">Public</span><div class="path">/companies/:ticker/accuracy</div><p>Track-record analysis in three score buckets (High ≥70 · Mid 45–70 · Low &lt;45). Per bucket: call count, avg 1d/3d/7d returns, win rate, avg win/loss, and expected value EV(7d) = (Win% × Avg Win) + (Loss% × Avg Loss).</p></div>
+    <div class="ep"><span class="m get">GET</span><span class="auth pub">Public</span><div class="path">/prices/:ticker?days=N</div><p>OHLCV chart data from the <code>raw_prices</code> cache. Default 90 days, max 365. Sorted oldest → newest.</p></div>
+    <div class="ep"><span class="m post">POST</span><span class="auth req">Auth</span><div class="path">/companies/:ticker/ingest</div><p>Triggers an immediate on-demand scan by forwarding to the ingestor's <code>/trigger/&lt;TICKER&gt;</code>. Runs EDGAR 90-day + full FMP archive + Alpha Vantage 8 quarters + async backfill. Used when a user first bookmarks a company.</p></div>
+    <div class="ep"><span class="m post">POST</span><span class="auth req">Auth</span><div class="path">/companies/rebackfill</div><p>Forwards to <code>/rebackfill-all</code>. Clears processed flags for every tracked ticker and re-ingests from scratch so existing records re-score with the latest prompt. Primary way to backfill the newer scoring fields after an Anthropic credit top-up.</p></div>
+  </div>
+
+  <h3>Reads — aggregates</h3>
+  <div class="cols2">
+    <div class="ep"><span class="m get">GET</span><span class="auth pub">Public</span><div class="path">/leaderboard</div><p>All tickers with ≥1 fully-windowed call (return_7d not null), dedup by (ticker, call_date). Per ticker: call count, avg confidence, avg 1d/3d/7d returns. Sorted by avg return_7d DESC.</p></div>
+    <div class="ep"><span class="m get">GET</span><span class="auth pub">Public</span><div class="path">/pulse</div><p>Sector-level aggregates: avg confidence and avg return_7d per sector, dedup by (ticker, call_date). Sorted by avg confidence DESC.</p></div>
+    <div class="ep"><span class="m get">GET</span><span class="auth pub">Public</span><div class="path">/sectors</div><p>Summary table of all sectors: avg 1d/3d/7d returns, win rate, call count, company count. One row per sector, sorted by avg 7d return DESC.</p></div>
+    <div class="ep"><span class="m get">GET</span><span class="auth pub">Public</span><div class="path">/sectors/:sector</div><p>Sector deep-dive: drift path (mean ± std per day from all companies' price_series — std = √(E[X²] − E[X]²)) plus per-company rankings by avg 7d return.</p></div>
+    <div class="ep"><span class="m get">GET</span><span class="auth opt">Optional</span><div class="path">/calendar?from=&amp;to=</div><p>FMP earnings calendar (default next 30 days). If authenticated, marks watchlist tickers <code>source='portfolio'</code> and server tickers <code>source='system'</code> (portfolio → system → rest ordering). Includes EPS/revenue estimates; for tracked tickers, injects avg_score, avg_return_7d, win_rate_7d.</p></div>
+  </div>
+
+  <h3>Auth &amp; portfolio</h3>
+  <div class="cols3">
+    <div class="ep"><span class="m post">POST</span><span class="auth pub">Public</span><div class="path">/auth/register</div><p>Create account (email + password ≥8 chars). Returns 7-day JWT. Rate-limited (20 req/15 min).</p></div>
+    <div class="ep"><span class="m post">POST</span><span class="auth pub">Public</span><div class="path">/auth/login</div><p>Authenticate. Returns 7-day JWT.</p></div>
+    <div class="ep"><span class="m get">GET</span><span class="auth req">Auth</span><div class="path">/auth/me</div><p>Current user's email, notifications_enabled, notifications_email.</p></div>
+    <div class="ep"><span class="m patch">PATCH</span><span class="auth req">Auth</span><div class="path">/auth/preferences</div><p>Update notifications_enabled (bool) and notifications_email (string).</p></div>
+    <div class="ep"><span class="m get">GET</span><span class="auth req">Auth</span><div class="path">/portfolio</div><p>Most recent call for each ticker in the user's watchlist, deduplicated and EDGAR-preferred.</p></div>
+    <div class="ep"><span class="m post">POST</span><span class="auth req">Auth</span><div class="path">/portfolio/:ticker</div><p>Add ticker to watchlist. Uses MongoDB <code>$addToSet</code> — idempotent.</p></div>
+    <div class="ep"><span class="m del">DELETE</span><span class="auth req">Auth</span><div class="path">/portfolio/:ticker</div><p>Remove ticker from watchlist.</p></div>
+    <div class="ep"><span class="m get">GET</span><span class="auth req">Auth</span><div class="path">/suggestions</div><p>Up to 6 companies not in the watchlist, prioritised by sector match then highest confidence.</p></div>
+    <div class="ep"><span class="m post">POST</span><span class="auth req">Auth</span><div class="path">/inspect</div><p>Streams a 5-section Claude Sonnet deep analysis via SSE. Rate-limited to 10 req/hour. Streams JSON chunks; ends with <code>[DONE]</code>.</p></div>
+  </div>
+
+  <!-- ════════ 7 · FRONTEND PAGES ════════ -->
+  <h2 id="pages"><span class="n">7</span>Frontend pages</h2>
+  <table>
+    <thead><tr><th>Route</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>/</code></td><td>Dashboard feed. Three time tabs — Live (&lt;24h), This Week, Earlier — auto-selecting the most relevant on load. All vs Portfolio toggle (authenticated). Auto-polls every 60s: incremental update on most polls, full refresh every 5th. Pending badge for calls still filling in returns. Score threshold legend (≥70 High / 45–69 Moderate / &lt;45 Low).</td></tr>
+      <tr><td><code>/companies/[ticker]</code></td><td>Stat strip: Latest Score, Calls Tracked, Last Report, Last 7d Return, Predictability (Pearson r), Score Trend, vs Sector 7d. Trade Brief card with guidance badge. Score + return history chart (≥2 calls). Post-Earnings Drift chart (current vs historical avg ± 1 std band, sector reference line). CEO Predictability Scatter (confidence vs return, OLS line, Pearson r, R², predicted return). Track Record table (score buckets with win %, avg win/loss, EV). Call cards with GuidanceBadge, QABadge, sparkline, key phrases, 1d/3d/7d returns. Clicking a card opens InspectModal. Bookmarking triggers on-demand ingest. Hint tooltips explain Pearson r, R², EV, score trend, sector delta.</td></tr>
+      <tr><td><code>/portfolio</code></td><td>Auth-protected. Watchlist cards + "just reported" section + sector-matched suggestion cards + notification preferences editor (toggle + custom email).</td></tr>
+      <tr><td><code>/leaderboard</code></td><td>Ranked table of all tickers by avg 7-day post-call return. Score threshold legend in header. Columns: rank badge, ticker, call count, avg confidence, avg 1d/3d/7d returns, win rate %. Clicking a row opens a drift chart overlay.</td></tr>
+      <tr><td><code>/sectors</code></td><td>Sector Pulse. Cards showing avg returns, win rate, call count. Clicking a card expands an inline detail panel on the same page — drift chart (mean ± 1 std band, D0→D7) and per-company rankings. No separate route.</td></tr>
+      <tr><td><code>/calendar</code></td><td>FMP earnings calendar (next 30 days). Highlights portfolio and server-tracked tickers. For tracked tickers with history, shows Avg Score, Avg 7d Return, Win % so you can assess track record before the next report. Shows EPS/revenue estimates. Portfolio → system → rest ordering.</td></tr>
+      <tr><td><code>/login</code></td><td>Email + password form. Stores JWT in localStorage on success.</td></tr>
+      <tr><td><code>/register</code></td><td>Account creation form. Error on duplicate email.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ════════ 8 · DESIGN DECISIONS ════════ -->
+  <h2 id="decisions"><span class="n">8</span>Key design decisions</h2>
+  <p class="intro">The "why" behind the structure — the non-obvious choices that make the pipeline robust.</p>
+
+  <div class="card"><h3>Three-pass ingest, not one source</h3><p>EDGAR is authoritative but only covers 8-K exhibit text. FMP provides structured archives going back years and always runs as Pass 2, even when EDGAR succeeds, because they cover different historical ranges. Alpha Vantage runs only on-demand (25 req/day) for single-ticker triggers. Cross-source dedup happens at two levels: <code>_ingested_filings</code> (filing_id) and a call_date check against <code>price_reactions</code>.</p></div>
+  <div class="card"><h3>Two Kafka topics from the ingestor, not one</h3><p>The ingestor publishes <code>raw-transcripts</code> and <code>raw-prices</code> simultaneously. This decouples price caching (correlation-service background thread) from transcript processing (scoring pipeline) — each consumer can fail and retry independently without blocking the other. A separate <code>price_refresh</code> job re-publishes OHLCV every 2h for any filing with null returns, so windows fill in automatically.</p></div>
+  <div class="card"><h3>Scoring service publishes back to Kafka, not straight to Mongo</h3><p>The scoring service outputs to <code>scored-transcripts</code>, not directly to the database. This keeps the pipeline asynchronous: the correlation service can lag, replay messages, or restart without losing data, and the two stages scale independently.</p></div>
+  <div class="card"><h3>Two Claude models, two purposes</h3><p>Batch scoring uses <code>SCORING_MODEL</code> — the recommendation in <code>.env.example</code> is Haiku for cost efficiency (prompt caching means the system prompt is billed once per cache window). The docker-compose default when no <code>.env</code> is present is Sonnet. Sonnet via <code>INSPECT_MODEL</code> is used only when a user opens the InspectModal — interactive, on-demand, rate-limited to 10 req/hour.</p></div>
+  <div class="card"><h3>Five scoring fields, not one</h3><p>The original prompt returned only <code>confidence_score</code> and <code>key_phrases</code>. It was extended to return three more in the same Claude call at no extra latency: <code>guidance_flag</code>, <code>trade_brief</code>, and <code>qa_defensiveness</code>. All five flow through the same Kafka message onto every <code>price_reactions</code> document, so the frontend renders a guidance badge, trade brief, and Q&amp;A caution badge with no extra API calls. Records predating the extension are re-scored automatically when they next appear in the queue; a full re-score is triggered via <code>POST /companies/rebackfill</code>.</p></div>
+  <div class="card"><h3>On-demand ingest via HTTP trigger</h3><p>The ingestor exposes a Flask API on port 8001. The BFF's <code>POST /companies/:ticker/ingest</code> forwards to it when a user bookmarks a company with no data yet — giving near-immediate feedback instead of waiting up to <code>SCHEDULE_INTERVAL_HOURS</code>. The trigger runs Pass 1+2+3 synchronously, then kicks off a full historical backfill in the background.</p></div>
+  <div class="card"><h3>How an unmonitored company gets data</h3><p>Searching does <i>not</i> trigger ingestion — it only reads what exists (<code>has_data: false</code> for un-ingested companies). <b>Adding to a watchlist is the primary trigger:</b> the BFF calls <code>/companies/:ticker/ingest</code> for immediate processing, and the ingestor also merges every user's watchlist into its scheduled scan set. Once added: immediate trigger scan (EDGAR 90d + full FMP + Alpha Vantage 8q) → async full historical backfill → the RSS poller covers all future filings in real time. The result is the same full card as any monitored company, typically within minutes.</p></div>
+  <div class="card"><h3>RSS poller as the real-time layer</h3><p>The original design relied purely on a per-ticker APScheduler scan. The RSS 8-K Atom poller was added for near-real-time coverage of <i>any</i> public company — not just those in <code>TICKERS</code>. The per-ticker scan remains as a reliability backstop for anything the feed misses.</p></div>
+  <div class="card"><h3>price_reactions as the denormalised read model</h3><p>Rather than joining scores + transcripts + prices at query time, the correlation-service writes a single document per call into <code>price_reactions</code> with everything the frontend needs. The BFF reads almost exclusively from this one collection — no cross-collection joins on any request path.</p></div>
+  <div class="card"><h3>Sector drift path via price_series</h3><p>Each <code>price_reactions</code> doc stores a <code>price_series</code> array (per-day % change from the call-date baseline). The BFF <code>/sectors/:sector</code> endpoint aggregates all companies' arrays within a sector into a mean drift path and confidence band (std = √(E[X²] − E[X]²)) without storing any sector-level summary documents — so sector charts are always live and auto-include newly correlated calls.</p></div>
+  <div class="card"><h3>Idempotency at every stage</h3><p><code>_ingested_filings</code> prevents re-publishing to Kafka (covers scheduled runs and HTTP triggers). The scoring-service checks <code>scores</code> before calling Claude — skips if all five fields present, re-scores if <code>trade_brief</code> is absent or <code>_mock</code>. The correlation-service upserts keyed on <code>filing_id</code>. <code>_sent_notifications</code> has a unique compound index on (user_id, ticker, call_date). Every service can restart, crash, or replay messages without producing duplicate data.</p></div>
+
+  <!-- ════════ 9 · LOCAL INFRA ════════ -->
+  <h2 id="local"><span class="n">9</span>Local infrastructure — Docker Compose</h2>
+  <p class="intro">The full stack runs locally as ten containers. This is what the AWS deployment (next section) mirrors.</p>
+<pre><span class="c"># infrastructure</span>
+zookeeper            <span class="c"># Kafka dependency (Confluent 7.5)</span>
+kafka                <span class="c"># Broker — 3 topics, auto-create disabled</span>
+kafka-setup          <span class="c"># One-shot: creates the 3 topics, then exits</span>
+kafka-ui             <span class="c"># Provectus web UI — port 8080</span>
+mongo                <span class="c"># mongo:7 — init script creates 6 collections + indexes</span>
+
+<span class="c"># application services</span>
+ingestor             <span class="c"># Python — EDGAR + FMP + Alpha Vantage + RSS + price_refresh + Flask (8001)</span>
+scoring-service      <span class="c"># Python — Claude scoring — 5 fields</span>
+correlation-service  <span class="c"># Python — returns + price_series + sector + raw_prices cache + 4h backfill + emails</span>
+bff                  <span class="c"># Node.js Express — port 3001</span>
+frontend             <span class="c"># Next.js 14 — port 3000</span>
+
+<span class="k">volumes:</span>
+  mongo_data         <span class="c"># MongoDB persistence across restarts</span>
+  kafka_data         <span class="c"># Kafka broker logs</span>
+  zookeeper_data     <span class="c"># Zookeeper data persistence</span>
+  zookeeper_log      <span class="c"># Zookeeper transaction logs</span></pre>
+
+  <!-- ════════ 10 · AWS ════════ -->
+  <h2 id="aws"><span class="n">10</span>AWS deployment <span class="src">infra/terraform/*.tf</span></h2>
+  <p class="intro">
+    On AWS, the same containers run in the cloud, reachable from the internet and described entirely as code with
+    Terraform. <code>terraform apply</code> builds everything; <code>terraform destroy</code> tears it down. CI/CD
+    (GitHub Actions, manual <code>workflow_dispatch</code>) builds the images, pushes them to ECR, and forces a new
+    ECS deployment. Almost every AWS piece maps to something from the local stack above.
+  </p>
+
+  <h3>The big picture — local vs AWS</h3>
+  <table>
+    <thead><tr><th>Local (Docker Compose)</th><th>AWS</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td>5 service containers</td><td><b>ECS Fargate</b></td><td>Runs the containers — no servers to manage</td></tr>
+      <tr><td>Docker images on disk</td><td><b>ECR</b></td><td>Private registry storing the built images</td></tr>
+      <tr><td><code>confluentinc/cp-kafka</code></td><td><b>MSK</b></td><td>Managed Kafka — the message bus</td></tr>
+      <tr><td><code>mongo:7</code> container</td><td><b>MongoDB Atlas</b> <span class="muted small">(not AWS)</span></td><td>The database</td></tr>
+      <tr><td><code>localhost</code> ports</td><td><b>2 × ALB</b></td><td>Public URLs into the frontend and the BFF</td></tr>
+      <tr><td><code>.env</code> file</td><td><b>Secrets Manager</b></td><td>API keys &amp; passwords, injected at runtime</td></tr>
+      <tr><td>files on disk</td><td><b>S3</b></td><td>Archives raw transcripts</td></tr>
+      <tr><td><code>docker logs</code></td><td><b>CloudWatch</b></td><td>Logs, dashboard, alarm</td></tr>
+      <tr><td>your laptop's network</td><td><b>VPC</b></td><td>The private network everything lives in</td></tr>
+      <tr><td>—</td><td><b>IAM</b></td><td>Permissions: who is allowed to do what</td></tr>
+    </tbody>
+  </table>
+
+  <h3>VPC — the private network <span class="muted small">· vpc.tf</span></h3>
+  <div class="card">
+    <p>An isolated network inside AWS, range <code>10.0.0.0/16</code>, spread across <b>two Availability Zones</b> (two physical data centres) with two kinds of subnet:</p>
+    <ul>
+      <li><span class="pill pub2">PUBLIC</span> &nbsp;<code>10.0.0.x</code> / <code>10.0.1.x</code> — internet-facing. <b>Only the two load balancers</b> live here.</li>
+      <li><span class="pill priv">PRIVATE</span> &nbsp;<code>10.0.10.x</code> / <code>10.0.11.x</code> — <b>all five containers and the Kafka brokers</b> live here, unreachable from the internet directly.</li>
+    </ul>
+    <p>Two supporting pieces: the <b>Internet Gateway</b> (the door between public subnets and the internet, so the ALBs can receive traffic) and the <b>NAT Gateway</b> (lets private containers make <i>outbound</i> calls to Anthropic, yfinance, EDGAR, and Atlas without being reachable inbound). The NAT's fixed IP is exported as the <code>nat_gateway_ip</code> output — you add it to <b>MongoDB Atlas → Network Access</b> so containers can reach the database.</p>
+  </div>
+
+  <h3>ECS Fargate — runs the containers <span class="muted small">· ecs.tf</span></h3>
+  <div class="card">
+    <p><b>ECS</b> orchestrates containers; <b>Fargate</b> is the serverless mode where AWS supplies the compute. A <b>task definition</b> is the cloud equivalent of one <code>docker-compose.yml</code> service block; a <b>service</b> keeps a task running (<code>desired_count = 1</code> restarts it if it dies).</p>
+    <table style="margin-bottom:0">
+      <thead><tr><th>Service</th><th>CPU / RAM</th><th>Public?</th><th>Talks to</th></tr></thead>
+      <tbody>
+        <tr><td><b>ingestor</b></td><td>512 / 1024</td><td>No</td><td>EDGAR, FMP → S3 + MSK + Mongo</td></tr>
+        <tr><td><b>scoring-service</b></td><td>512 / 1024</td><td>No</td><td>MSK, Anthropic API, Mongo</td></tr>
+        <tr><td><b>correlation-service</b></td><td>256 / 512</td><td>No</td><td>MSK, Mongo, Resend</td></tr>
+        <tr><td><b>bff</b></td><td>256 / 512</td><td>Yes <span class="muted small">(BFF ALB)</span></td><td>Mongo</td></tr>
+        <tr><td><b>frontend</b></td><td>512 / 1024</td><td>Yes <span class="muted small">(Frontend ALB)</span></td><td>the BFF</td></tr>
+      </tbody>
+    </table>
+    <p class="small" style="margin-bottom:0">A one-shot <code>kafka-setup</code> task creates the three topics after MSK is ready, then exits. <code>ignore_changes = [task_definition, desired_count]</code> tells Terraform to leave running versions alone — CI/CD deploys new images, not Terraform.</p>
+  </div>
+
+  <h3>MSK — managed Kafka <span class="muted small">· msk.tf</span></h3>
+  <div class="card amber">
+    <p>The cloud version of the local Kafka container: <b>2 brokers</b> (<code>kafka.t3.small</code>, one per AZ) in the private subnets, PLAINTEXT/unauthenticated but locked down by its security group so <b>only the ECS containers</b> can reach it.</p>
+    <p style="margin-bottom:0">⚠️ <b>This is the most expensive piece (~$93/month) and it bills even when idle</b> — the main reason the stack is designed to be <code>terraform destroy</code>-ed when not in use.</p>
+  </div>
+
+  <h3>ALB — the public front doors <span class="muted small">· alb.tf</span></h3>
+  <div class="fix"><p><b>Note:</b> there are <b>two separate Application Load Balancers</b> (<code>aws_lb.frontend</code> and <code>aws_lb.bff</code>), each with its own target group and listener — not one ALB with two target groups.</p></div>
+  <div class="card">
+    <p>Each ALB gives part of the app a public URL and health-checks its target: the <b>Frontend ALB</b> → frontend container (port 3000, health check <code>/</code>); the <b>BFF ALB</b> → BFF container (port 3001, health check <code>/health</code>). They listen on port 80 and auto-add an HTTPS:443 listener (with HTTP→HTTPS redirect) if an ACM certificate ARN is supplied.</p>
+  </div>
+  <div class="card blue">
+    <h3>Why two ALBs, not one?</h3>
+    <p>Next.js bakes its API base URL (<code>NEXT_PUBLIC_API_URL</code>) into the frontend <b>at build time</b>, so the build needs the BFF's public address <i>before</i> the frontend image is built. The BFF ALB is created first, its DNS name is exported as the <code>bff_url</code> output, and CI/CD feeds it in as a build argument for the frontend image. Two separate front doors is what makes that possible.</p>
+  </div>
+
+  <h3>Supporting services</h3>
+  <div class="cols2">
+    <div class="coll"><h3>S3 <span class="muted">· s3.tf</span></h3><p>Object storage for raw transcript archives (best-effort; no-op locally). Versioned, encrypted (AES256), fully private. Lifecycle: → Glacier after 90 days, deleted after 1 year.</p></div>
+    <div class="coll"><h3>ECR <span class="muted">· ecr.tf</span></h3><p>Private registry, one repo per service. Scans images on push; auto-deletes untagged images after 1 day.</p></div>
+    <div class="coll"><h3>Secrets Manager <span class="muted">· secrets.tf</span></h3><p>Holds five secrets (mongo-uri, anthropic-api-key, jwt-secret, fmp-api-key, resend-api-key); ECS injects each into the right container at startup. Never baked into images or git.</p></div>
+    <div class="coll"><h3>IAM <span class="muted">· iam.tf</span></h3><p>Two least-privilege roles: the <b>execution role</b> (start the container — pull image, read secrets, write logs) and the <b>task role</b> (runtime — ingestor writes S3, services push metrics).</p></div>
+    <div class="coll"><h3>CloudWatch <span class="muted">· cloudwatch.tf</span></h3><p>Per-service log groups (14-day retention), an <code>esp-overview</code> dashboard (one panel per service), and an alarm if the scoring service has zero running tasks for 2 minutes.</p></div>
+    <div class="coll"><h3>Security Groups <span class="muted">· security_groups.tf</span></h3><p>Per-resource firewalls: ALBs accept from anyone; ECS accepts only from the ALBs; MSK accepts only from ECS. Traffic can never skip a layer.</p></div>
+  </div>
+
+  <h3>How traffic flows on AWS</h3>
+  <div class="flow">Internet  →  ALB <span class="pill pub2">PUBLIC</span>  →  ECS containers <span class="pill priv">PRIVATE</span>  →  MSK / Mongo <span class="pill priv">PRIVATE</span>
+
+User loading the site:
+  Browser → Frontend ALB → Frontend container
+          → (browser then calls) BFF ALB → BFF container → MongoDB Atlas → back to browser
+
+Background processing (all outbound via NAT Gateway):
+  Ingestor    → archives to S3 + publishes to MSK
+  Scoring     → consumes MSK → Anthropic API → writes Mongo + publishes to MSK
+  Correlation → consumes MSK → price reaction → writes Mongo → emails via Resend</div>
+
+  <h3>What it costs <span class="muted small">· us-east-1, while running</span></h3>
+  <table>
+    <thead><tr><th>Resource</th><th class="cost">Approx cost</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>MSK — 2 × kafka.t3.small</td><td class="cost">~$93 / mo</td><td><b>Bills 24/7, idle or not</b></td></tr>
+      <tr><td>ECS Fargate — 5 tasks</td><td class="cost">~$36 / mo</td><td>Scales with declared CPU/RAM</td></tr>
+      <tr><td>NAT Gateway</td><td class="cost">~$33 / mo + data</td><td><b>Bills 24/7</b>, plus $0.045/GB</td></tr>
+      <tr><td>2 × ALB</td><td class="cost">~$12 / mo + LCU</td><td>One per front door</td></tr>
+      <tr><td colspan="3" class="muted small" style="padding-top:14px"><b>≈ $150–200 / month while running.</b> MSK and the NAT Gateway are the always-on charges — which is why the stack is built to be <code>terraform destroy</code>-ed when idle and rebuilt with <code>terraform apply</code> when needed (re-whitelist the new NAT IP in Atlas afterwards).</td></tr>
+    </tbody>
+  </table>
+  <div class="card blue">
+    <h3>What this means for you</h3>
+    <p style="margin-bottom:0">Leaving the stack up does nothing useful while no one is using it, but still costs ~$5–7 a day — mostly MSK and the NAT Gateway, which bill by the hour whether or not traffic flows. The practical habit: <code>terraform apply</code> to bring it up for a demo or test session, then <code>terraform destroy</code> when you're done. Your live application data is safe — it lives in <b>MongoDB Atlas</b>, which is external to this Terraform and is never torn down. (The S3 transcript bucket <i>is</i> part of the managed infrastructure and would be removed on destroy, but it only holds best-effort raw-transcript backups — not the data the app actually serves.) The only manual step after each rebuild is copying the new <code>nat_gateway_ip</code> into Atlas → Network Access so the containers can reach the database again.</p>
+  </div>
+
+  <!-- ════════ 11 · ENV VARS ════════ -->
+  <h2 id="env"><span class="n">11</span>Environment variables</h2>
+  <p class="intro">The complete configuration surface. On AWS, the secret values come from Secrets Manager; the rest are set as ECS task environment variables.</p>
+<pre><span class="c"># MongoDB</span>
+MONGO_ROOT_USER=admin
+MONGO_ROOT_PASSWORD=changeme
+MONGO_URI=mongodb://admin:changeme@mongo:27017/earnings_sentiment?authSource=admin
+
+<span class="c"># Kafka</span>
+KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+
+<span class="c"># SEC EDGAR (required by fair-use policy)</span>
+EDGAR_USER_AGENT="YourName contact@email.com"
+
+<span class="c"># Ingestor</span>
+TICKERS=AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,JPM,JNJ,XOM
+LOOKBACK_DAYS=30              <span class="c"># docker-compose default 730; bare code default 15000</span>
+SCHEDULE_INTERVAL_HOURS=2
+RSS_POLL_INTERVAL_MINUTES=10
+
+<span class="c"># FMP (enables transcript Pass 2 + /calendar endpoint)</span>
+FMP_API_KEY=
+
+<span class="c"># Alpha Vantage (enables transcript Pass 3 — on-demand only, 25 req/day free tier)</span>
+ALPHAVANTAGE_API_KEY=
+
+<span class="c"># Claude / Anthropic</span>
+ANTHROPIC_API_KEY=sk-ant-...
+SCORING_MODEL=claude-haiku-4-5-20251001   <span class="c"># recommended; docker-compose fallback claude-sonnet-4-6</span>
+INSPECT_MODEL=claude-sonnet-4-6           <span class="c"># used by BFF /inspect</span>
+MAX_TRANSCRIPT_CHARS=150000               <span class="c"># scoring-service hard cap on text sent to Claude</span>
+
+<span class="c"># Correlation</span>
+PRICE_FETCH_DAYS=12
+
+<span class="c"># BFF</span>
+JWT_SECRET=use_a_long_random_string_here
+PORT=3001
+CORS_ORIGIN=http://localhost:3000
+INGESTOR_URL=http://ingestor:8001         <span class="c"># BFF uses this to call /trigger/</span>
+
+<span class="c"># Email notifications (set NOTIFICATION_PROVIDER=resend to enable)</span>
+NOTIFICATION_PROVIDER=none
+RESEND_API_KEY=
+APP_URL=http://localhost:3000
+NOTIFY_FROM_EMAIL=onboarding@resend.dev
+
+<span class="c"># Frontend (Next.js build-time)</span>
+NEXT_PUBLIC_API_URL=http://localhost:3001</pre>
+
+</div>
+</body>
+</html>
